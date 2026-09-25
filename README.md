@@ -16,19 +16,56 @@ itself must never do either. The two meet only at the model folder.
 
 ## Setting it up
 
-You need [uv](https://docs.astral.sh/uv/) and Git. uv installs the right Python (3.12) by itself.
+You need 64-bit Windows, [Git](https://git-scm.com) and [uv](https://docs.astral.sh/uv/) 0.11
+(`winget install astral-sh.uv`). Then, in the cloned folder:
 
-```bash
-cd model-converter
+```powershell
+.\setup.ps1
 ```
 
-```bash
-uv sync
-```
+That installs Python 3.12.10 and every package at the exact versions in `uv.lock`
+(`uv sync --locked`, so nothing is re-resolved), then runs `0_doctor.py` to check the result.
+uv's download cache, the Python interpreter and the environment all go inside this folder
+(`.uv\` and `.venv\`), so every DLL the project uses lives under one path. Run `setup.ps1`
+again, rather than `uv sync`, whenever `uv.lock` changes; add `-Reinstall` to replace every
+package.
 
-That installs PyTorch (the CPU build, which is all the conversion needs), transformers,
-openai-whisper, onnx, onnxruntime and sherpa-onnx 1.13.8. The first run of step 1 also clones
-sherpa-onnx's source at v1.13.8 into `vendor/`, for its export script.
+Then copy `machine.example.yaml` to `machine.yaml` and set `cnverc_path` to the folder
+`cnverc.exe` is in. `machine.yaml` holds what differs between PCs and is not committed.
+
+The first run of step 1 also clones sherpa-onnx's source at v1.13.8 into `vendor/`, for its
+export script.
+
+### On another PC
+
+These steps take a fresh Windows 11 machine to the point where the steps run. Nothing is copied
+from the first machine except the repo, and what isn't committed is listed here.
+
+1. Install Git and uv 0.11 (`winget install Git.Git astral-sh.uv`), then open a new terminal so
+   both are on PATH.
+2. Clone the repo into the folder where it will live. A later move means reinstalling, because
+   the environment records its own path. Keep it out of synced folders such as OneDrive.
+3. In that folder, run `.\setup.ps1`. If PowerShell refuses to run scripts, use
+   `powershell -ExecutionPolicy Bypass -File .\setup.ps1`.
+4. Read the end of its output:
+   - `OK. This machine can run every step.` means go on to 5.
+   - `MISSING` or `ALTERED` lines mean security software removed or changed those files.
+     Send the folder path and sentence the doctor prints to whoever manages it, and wait for the
+     exclusion. Then run `.\setup.ps1 -Reinstall` and check for `OK.` again.
+   - `cnverc's engine could not run` naming a DLL outside this folder means something else
+     loaded its own `onnxruntime.dll` into Python. If that path belongs to security software, it
+     is the same conversation: ask for the exclusion, then reinstall.
+   - `uv is ...` or `git is not installed` means fix what it names and rerun.
+5. Copy `machine.example.yaml` to `machine.yaml` and set `cnverc_path` to where `cnverc.exe`
+   is on this machine.
+6. Put the test recordings the configs name into `test_audio/` (they are not committed). Copy
+   them from the other machine, or make new ones as step 2 of the next section describes.
+7. Run step 1 with a config. It runs the doctor again, clones sherpa-onnx into `vendor/`, and
+   checks the patch and the recording.
+
+If something differs between the two machines and you can't see why, compare
+`runs\_doctor.json` from each: it lists the versions, the DLL each engine loaded, other
+`onnxruntime.dll` copies and any security software.
 
 ## Converting a Whisper model
 
@@ -50,13 +87,12 @@ sherpa-onnx's source at v1.13.8 into `vendor/`, for its export script.
 
    test:
      wav: test_audio/es-16k.wav   # a short clip in that language, 16 kHz mono
-
-   cnverc:
-     path: D:/AI_Data/projects/cnverc/target/release   # the folder cnverc.exe is in
    ```
 
-2. **Put a test recording in `test_audio/`:** a few seconds of speech in the model's language,
-   16 kHz mono. `cnverc --listen --wav` saves exactly that to `logs/segments/`. Any other file
+   Where cnverc is comes from `machine.yaml`, not the config.
+
+2. **Put a test recording in `test_audio/`.** Recordings are not committed, so a fresh clone
+   has none. Use a few seconds of speech in the model's language, 16 kHz mono. `cnverc --listen --wav` saves exactly that to `logs/segments/`. Any other file
    converts with `ffmpeg -i in.wav -ar 16000 -ac 1 out.wav`.
 
 3. **Run the seven steps in order.** Each one prints what it did and stops with a clear
@@ -66,8 +102,9 @@ sherpa-onnx's source at v1.13.8 into `vendor/`, for its export script.
    uv run python whisper-to-onnx/steps/1_check_setup.py --config whisper-to-onnx/configs/your-model.yaml
    ```
 
-   and then `2_download.py`, `3_to_openai_format.py`, `4_export_onnx.py`, `5_check_int8.py`,
-   `6_assemble.py`, `7_verify.py`, each with the same `--config`.
+   Step 1 runs `0_doctor.py` first. Then run `2_download.py`, `3_to_openai_format.py`,
+   `4_export_onnx.py`, `5_check_int8.py`, `6_assemble.py` and `7_verify.py`, each with the
+   same `--config`.
 
 4. **Listen to it.** Step 7 installs the folder into cnverc and tells you how to compare it
    with the recognizer you already have: tick **Compare recognizers** in cnverc and speak.
@@ -116,9 +153,15 @@ whole units: swapping two weights in one layer on purpose gave a difference of 2
   `dynamo=False`.
 - **transformers 5 no longer ships its conversion scripts.** The weight-name mapping comes from
   `convert_openai_to_hf.py` in transformers v4.46.0, copied into step 3 with its source named.
-- **Windows 11 has an old `onnxruntime.dll` in System32** (1.17.1). sherpa-onnx's Python package
-  crashes if it loads that one, so `common.transcribe_like_cnverc` points it at the onnxruntime
-  package's own DLL first.
+- **sherpa-onnx's own package leaves out its runtime unless asked.** Its wheels require
+  `sherpa-onnx-core`, which puts `onnxruntime.dll` 1.28.2 (the version cnverc links) beside
+  sherpa-onnx's extension. Its sdist declares no dependencies, and uv locks from the sdist, so
+  `pyproject.toml` names `sherpa-onnx-core` itself. Without it, sherpa-onnx finds whatever
+  `onnxruntime.dll` Windows offers, and Windows 11 has an old one (1.17) in System32 that crashes it.
+- **cnverc's engine runs in a process of its own** (`engine_worker.py`), which checks which
+  `onnxruntime.dll` it actually loaded and refuses to transcribe on anything but 1.28.2 from
+  the environment. The `onnxruntime` package (1.30) that steps 4 and 5 use for the exact
+  logits check and for quantizing links its runtime into its own extension, so the two never meet.
 - **PyTorch exports a model over 2 GB as hundreds of loose files**, one per tensor. The export
   script gathers them into one `.weights` file but leaves the loose ones behind; step 4 deletes
   them before checking the export.
@@ -128,12 +171,38 @@ whole units: swapping two weights in one layer on purpose gave a difference of 2
   from Whisper's standard vocabulary, so step 2 refuses a model whose vocabulary size differs from
   its base model's.
 
+## Security software (McAfee, Trellix and the like)
+
+On-access scanners sometimes quarantine or lock DLLs while uv writes them: torch's, onnxruntime's,
+sherpa-onnx's. The install then looks finished, and a step fails much later when it first loads
+the missing file (usually step 4, the first to load ONNX Runtime and sherpa-onnx).
+`0_doctor.py` checks for exactly this, before anything runs:
+
+- every `.dll`/`.pyd` the packages installed is present and matches the hash in the package's
+  own `RECORD`; it names each one that is missing or changed;
+- cnverc's engine loads, on onnxruntime 1.28.2 from the environment, and names the DLL it got if not;
+- torch and onnxruntime import;
+- which other `onnxruntime.dll` copies are on the machine, and whether McAfee/Trellix is installed.
+
+If it reports a missing or altered file, ask whoever manages the security software for an
+on-access scan exclusion for this folder (the doctor prints the path and a sentence to send),
+then run `.\setup.ps1 -Reinstall`. Everything is under that one folder by design. Don't turn the
+scanner off to get around it. If no exclusion is possible, steps 1 to 6 could run under WSL2
+instead (not set up here); step 7 needs Windows, because it runs `cnverc.exe`.
+
+`runs\_doctor.json` records what the doctor found. Comparing it between two machines is the
+quickest way to see what differs.
+
 ## Tested with
 
 | Config | Model | Result |
 |---|---|---|
 | `es-small-hitz.yaml` | `HiTZ/whisper-small-es` (`pytorch_model.bin`, 80 mels, 12 decoder layers) | All seven steps pass. Logits: 0 (step 3), 0.00004 (step 4). int8: 375 MB, 94% agreement with fp32 in cnverc's engine |
 | `es-turbo-adriszmar.yaml` | `adriszmar/whisper-large-v3-turbo-es` (safetensors, 128 mels, 4 decoder layers) | All seven steps pass. Logits: 0 (step 3), 0.00008 (step 4). int8: 1,036 MB, 100% agreement with fp32 |
+
+These numbers were measured with cnverc's engine running on onnxruntime 1.30. On 1.28.2 (what
+cnverc links, and what the engine uses now) the shipped turbo int8 files give the same words;
+the small int8 files differ by one word on the unclear stretch the notes above describe.
 
 Both ran on the same scripts; only the configs differ. Both are installed in cnverc and
 listed as `ok`. Whether either beats the stock Whisper turbo on your own speech is step 7's
@@ -143,13 +212,16 @@ listening test, which hasn't been done yet.
 
 ```
 model-converter/
-  pyproject.toml        the Python environment (uv)
+  pyproject.toml        the Python environment (uv); uv.lock pins every version
+  setup.ps1             installs everything into this folder and runs the doctor
+  machine.example.yaml  copy to machine.yaml: this PC's paths (not committed)
   whisper-to-onnx/
     configs/            one .yaml per model
-    steps/              the seven steps, and common.py
+    steps/              0_doctor.py, the seven steps, common.py, engine_worker.py
     patches/            the change to sherpa-onnx's export script, kept visible
   test_audio/           test recordings (not committed)
   vendor/               sherpa-onnx at v1.13.8, cloned by step 1 (not committed)
+  .uv/  .venv/          uv's cache and Python, and the environment (not committed)
   runs/<run_name>/      everything a run produces (not committed)
   whisper-to-onnx-converter.md   the original instructions this was built from
 ```

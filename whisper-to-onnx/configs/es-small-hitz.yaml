@@ -15,6 +15,3 @@ use_fp32: false
 
 test:
   wav: test_audio/es-16k.wav
-
-cnverc:
-  path: D:/AI_Data/projects/cnverc/target/release

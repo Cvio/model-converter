@@ -6,8 +6,13 @@ runs-*.log
 # Cloned by step 1 (sherpa-onnx at the pinned tag) and reference copies.
 /vendor/
 
-# The Python environment uv creates.
+# The Python environment uv creates, and uv's cache and Python, which
+# setup.ps1 keeps inside the repo so one folder holds every native file.
 /.venv/
+/.uv/
+
+# This machine's paths (see machine.example.yaml).
+/machine.yaml
 
 # Test recordings: voices, not code.
 *.wav
