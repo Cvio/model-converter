@@ -1,0 +1,20 @@
+# A full fine-tune of Whisper large-v3-turbo on Spanish, MIT licence, F32 safetensors.
+# Same architecture as the Whisper turbo cnverc already runs, so the comparison in step 7 is
+# fair. It is also 128-mel, which is what the export script's name rule got wrong.
+model_id: adriszmar/whisper-large-v3-turbo-es
+base_model: openai/whisper-large-v3-turbo   # where the tokenizer comes from
+run_name: es-turbo-adriszmar
+language: es                                # forced when transcribing in steps 3-5
+
+engine:
+  folder_name: whisper-large-v3-turbo-es-adriszmar   # the folder inside cnverc's models/asr/
+  display_name: Whisper large-v3-turbo Spanish (adriszmar, int8)
+  languages: [es]
+
+use_fp32: false        # true ships the full-size files if step 5 finds int8 unusable
+
+test:
+  wav: test_audio/es-16k.wav                # 16 kHz mono
+
+cnverc:
+  path: D:/AI_Data/projects/cnverc/target/release

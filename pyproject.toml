@@ -1,0 +1,35 @@
+[project]
+name = "model-converter"
+version = "0.1.0"
+description = "Convert Hugging Face models into the formats cnverc runs."
+# The torch, onnxruntime and openai-whisper wheels this needs are published for
+# 3.12; this PC's default Python is newer than they support.
+requires-python = "==3.12.*"
+dependencies = [
+    "torch",
+    "transformers",
+    "safetensors",
+    "huggingface_hub",
+    "openai-whisper",
+    "onnx",
+    "onnxruntime",
+    "kaldi-native-fbank",
+    "soundfile",
+    "librosa",
+    "numpy",
+    "pyyaml",
+    "sherpa-onnx==1.13.8",
+]
+
+[tool.uv]
+package = false
+
+# The export runs on the CPU. The CPU-only build avoids a multi-gigabyte CUDA
+# download that nothing here uses.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }

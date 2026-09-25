@@ -1,0 +1,20 @@
+# A full fine-tune of Whisper small on Spanish, Apache-2.0, shipped as pytorch_model.bin.
+# A different size from the turbo config (80 mels, 12 decoder layers) and a different weights
+# format: converting both without editing a script is the proof that nothing is hardcoded.
+model_id: HiTZ/whisper-small-es
+base_model: openai/whisper-small
+run_name: es-small-hitz
+language: es
+
+engine:
+  folder_name: whisper-small-es-hitz
+  display_name: Whisper small Spanish (HiTZ, int8)
+  languages: [es]
+
+use_fp32: false
+
+test:
+  wav: test_audio/es-16k.wav
+
+cnverc:
+  path: D:/AI_Data/projects/cnverc/target/release

@@ -1,0 +1,15 @@
+# What runs produce: downloads, checkpoints, ONNX files. Gigabytes, and all
+# reproducible from a config.
+/runs/
+runs-*.log
+
+# Cloned by step 1 (sherpa-onnx at the pinned tag) and reference copies.
+/vendor/
+
+# The Python environment uv creates.
+/.venv/
+
+# Test recordings: voices, not code.
+*.wav
+
+__pycache__/

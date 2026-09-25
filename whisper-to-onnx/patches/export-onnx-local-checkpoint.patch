@@ -1,0 +1,163 @@
+diff --git a/scripts/whisper/export-onnx.py b/scripts/whisper/export-onnx.py
+index 739000a..ae07909 100755
+--- a/scripts/whisper/export-onnx.py
++++ b/scripts/whisper/export-onnx.py
+@@ -14,6 +14,7 @@ use any T <= 30.
+ """
+ 
+ import argparse
++import inspect
+ import os
+ from pathlib import Path
+ from typing import Any, Dict, Optional
+@@ -38,7 +39,6 @@ def get_args():
+     parser.add_argument(
+         "--model",
+         type=str,
+-        required=True,
+         # fmt: off
+         choices=[
+             "tiny", "tiny.en", "base", "base.en",
+@@ -53,10 +53,49 @@ def get_args():
+             ],
+         # fmt: on
+     )
+-    return parser.parse_args()
++    # cnverc model-converter: export a fine-tuned checkpoint from a file.
++    parser.add_argument(
++        "--checkpoint",
++        type=str,
++        help="Path to a checkpoint in OpenAI Whisper format (a dict with 'dims' "
++        "and 'model_state_dict'). Use with --name instead of --model.",
++    )
++    parser.add_argument(
++        "--name",
++        type=str,
++        help="Prefix for the output files when --checkpoint is used.",
++    )
++    args = parser.parse_args()
++    if args.checkpoint:
++        if not args.name:
++            parser.error("--checkpoint needs --name")
++        if args.model:
++            parser.error("give --model or --checkpoint, not both")
++    elif not args.model:
++        parser.error("give --model or --checkpoint")
++    return args
++
++
++# cnverc model-converter: PyTorch 2.9 made the dynamo exporter the default, and
++# it fails on how Whisper indexes its positional embeddings. Use the TorchScript
++# exporter wherever the option exists.
++EXPORT_KWARGS = (
++    {"dynamo": False}
++    if "dynamo" in inspect.signature(torch.onnx.export).parameters
++    else {}
++)
++
++# cnverc model-converter: ONNX files cannot exceed 2 GB, so larger weights go to
++# a separate .weights file. Upstream decides this from the model's name; decide
++# it from the size instead, so a fine-tune is handled whatever it is called.
++EXTERNAL_DATA_BYTES = 1_500_000_000
+ 
+ 
+-def add_meta_data(filename: str, meta_data: Dict[str, Any]):
++def needs_external_data(module) -> bool:
++    return sum(p.numel() * p.element_size() for p in module.parameters()) > EXTERNAL_DATA_BYTES
++
++
++def add_meta_data(filename: str, meta_data: Dict[str, Any], external=None):
+     """Add meta data to an ONNX model. It is changed in-place.
+ 
+     Args:
+@@ -75,7 +114,9 @@ def add_meta_data(filename: str, meta_data: Dict[str, Any]):
+         meta.key = key
+         meta.value = str(value)
+ 
+-    if "large" in filename or "turbo" in filename:
++    if external is None:
++        external = "large" in filename or "turbo" in filename
++    if external:
+         external_filename = filename.split(".onnx")[0]
+         onnx.save(
+             model,
+@@ -414,13 +455,16 @@ def load_model(name: str):
+ @torch.no_grad()
+ def main():
+     args = get_args()
+-    name = args.model
++    name = args.name if args.checkpoint else args.model
+     print(args)
+     print(name)
+ 
+     opset_version = 17
+ 
+-    model = load_model(name)
++    if args.checkpoint:
++        model = whisper.load_model(args.checkpoint, device="cpu")
++    else:
++        model = load_model(name)
+     print(model.dims)
+ 
+     print(
+@@ -450,16 +494,9 @@ def main():
+     audio = whisper.pad_or_trim(audio)
+     assert audio.shape == (16000 * 30,), audio.shape
+ 
+-    if args.model in ("distil-large-v3", "distil-large-v3.5"):
+-        n_mels = 128
+-    elif args.model in (
+-        "large",
+-        "large-v3",
+-        "turbo",
+-    ):
+-        n_mels = 128
+-    else:
+-        n_mels = 80
++    # cnverc model-converter: from the checkpoint, not the model name. The name
++    # rule gave 80 to any large-v3 or turbo fine-tune loaded from a file.
++    n_mels = model.dims.n_mels
+ 
+     mel = (
+         whisper.log_mel_spectrogram(audio, n_mels=n_mels).to(model.device).unsqueeze(0)
+@@ -488,6 +525,7 @@ def main():
+         encoder,
+         mel,
+         encoder_filename,
++        **EXPORT_KWARGS,
+         opset_version=opset_version,
+         input_names=["mel"],
+         output_names=["n_layer_cross_k", "n_layer_cross_v"],
+@@ -533,7 +571,11 @@ def main():
+         "no_timestamps": tokenizer.no_timestamps,
+     }
+     print(f"encoder_meta_data: {encoder_meta_data}")
+-    add_meta_data(filename=encoder_filename, meta_data=encoder_meta_data)
++    add_meta_data(
++        filename=encoder_filename,
++        meta_data=encoder_meta_data,
++        external=needs_external_data(model.encoder) if args.checkpoint else None,
++    )
+ 
+     n_audio = mel.shape[0]
+     tokens = torch.tensor([[tokenizer.sot, tokenizer.sot, tokenizer.sot]] * n_audio).to(
+@@ -605,6 +647,7 @@ def main():
+             offset,
+         ),
+         decoder_filename,
++        **EXPORT_KWARGS,
+         opset_version=opset_version,
+         input_names=[
+             "tokens",
+@@ -624,7 +667,10 @@ def main():
+         },
+     )
+ 
+-    if "large" in args.model:
++    decoder_external = (
++        needs_external_data(model.decoder) if args.checkpoint else "large" in args.model
++    )
++    if decoder_external:
+         decoder_external_filename = decoder_filename.split(".onnx")[0]
+         decoder_model = onnx.load(decoder_filename)
+         onnx.save(
