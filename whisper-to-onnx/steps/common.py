@@ -16,6 +16,12 @@ import yaml
 REPO = Path(__file__).resolve().parents[2]
 SHERPA = REPO / "vendor" / "sherpa-onnx"
 SHERPA_TAG = "v1.13.8"  # the version cnverc links; see README
+# The onnxruntime sherpa-onnx 1.13.8 is built against. sherpa-onnx-core ships
+# it, and cnverc.exe links it statically.
+SHERPA_ORT_VERSION = "1.28.2"
+ENGINE_WORKER = Path(__file__).resolve().parent / "engine_worker.py"
+# This machine's paths, kept out of the committed configs.
+MACHINE = REPO / "machine.yaml"
 EXPORT_SCRIPT = SHERPA / "scripts" / "whisper" / "export-onnx.py"
 PATCH = REPO / "whisper-to-onnx" / "patches" / "export-onnx-local-checkpoint.patch"
 
@@ -50,7 +56,19 @@ def load_config(path: str) -> dict:
         if key not in config["engine"]:
             raise Stop(f"{config_path} has no 'engine.{key}'")
     config["_path"] = config_path
+    machine = load_machine()
+    if machine.get("cnverc_path") and not config.get("cnverc", {}).get("path"):
+        config.setdefault("cnverc", {})["path"] = machine["cnverc_path"]
     return config
+
+
+def load_machine() -> dict:
+    """machine.yaml: what differs between PCs (see machine.example.yaml).
+    A model config's own value wins over it."""
+    if not MACHINE.is_file():
+        return {}
+    with open(MACHINE, encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
 
 
 def run_dir(config: dict) -> Path:
@@ -62,7 +80,12 @@ def test_wav(config: dict) -> Path:
     if not wav.is_absolute():
         wav = REPO / wav
     if not wav.is_file():
-        raise Stop(f"the test wav is not at {wav}")
+        raise Stop(
+            f"the test wav is not at {wav}. Recordings are not committed (they are voices), "
+            f"so a fresh clone has none: record a few seconds in {config['language']!r} with "
+            f"'cnverc --listen --wav' (it saves 16 kHz mono to logs/segments/), or convert any "
+            f"clip with 'ffmpeg -i in.wav -ar 16000 -ac 1 {wav.name}', and put it there."
+        )
     return wav
 
 
@@ -121,35 +144,56 @@ def transcribe_like_cnverc(encoder, decoder, tokens, wav, language: str) -> str:
     This, not sherpa-onnx's scripts/whisper/test.py, is the judge: test.py
     decodes in its own Python loop, and on whisper-small its int8 transcript
     was far worse than what the C++ engine makes of the same files.
+
+    It runs in its own process (engine_worker.py) so it gets onnxruntime
+    SHERPA_ORT_VERSION from sherpa-onnx-core, never the onnxruntime package a
+    step may already have loaded; the worker refuses to transcribe otherwise.
     """
-    import os
-
-    # Before sherpa_onnx: its extension looks for onnxruntime.dll beside
-    # itself, then in folders added with add_dll_directory, then in System32,
-    # which on Windows 11 holds an old copy (1.17.1) it cannot use. Point it at
-    # the onnxruntime package's own DLL first.
-    if hasattr(os, "add_dll_directory"):
-        import onnxruntime
-
-        os.add_dll_directory(str(Path(onnxruntime.__file__).parent / "capi"))
-    import sherpa_onnx
-    import soundfile as sf
-
-    recognizer = sherpa_onnx.OfflineRecognizer.from_whisper(
-        encoder=str(encoder),
-        decoder=str(decoder),
-        tokens=str(tokens),
-        language=language,
-        task="transcribe",
-        tail_paddings=0,
-        num_threads=6,
-        provider="cpu",
+    result = _engine(
+        "--encoder", encoder, "--decoder", decoder, "--tokens", tokens,
+        "--wav", wav, "--language", language,
     )
-    audio, sample_rate = sf.read(str(wav), dtype="float32")
-    stream = recognizer.create_stream()
-    stream.accept_waveform(sample_rate, audio)
-    recognizer.decode_stream(stream)
-    return stream.result.text.strip()
+    global _ENGINE_SHOWN
+    if not _ENGINE_SHOWN:
+        _ENGINE_SHOWN = True
+        print(f"  (engine: {engine_description(result)})")
+    return result["text"]
+
+
+_ENGINE_SHOWN = False
+
+
+def engine_selftest() -> dict:
+    """Load cnverc's engine without a model and report which runtime it got."""
+    return _engine("--selftest")
+
+
+def engine_description(result: dict) -> str:
+    ort = result.get("onnxruntime", {})
+    where = ort.get("path", ort.get("why", ""))
+    return (
+        f"sherpa-onnx {result.get('sherpa_onnx')} on onnxruntime "
+        f"{ort.get('version', '?')}, {where}"
+    )
+
+
+def _engine(*argv) -> dict:
+    import subprocess
+
+    command = [sys.executable, str(ENGINE_WORKER), "--expect-ort", SHERPA_ORT_VERSION]
+    command += [str(x) for x in argv]
+    done = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    lines = [line for line in done.stdout.splitlines() if line.startswith("{")]
+    result = json.loads(lines[-1]) if lines else None
+    if done.returncode != 0 or not result or not result.get("ok"):
+        why = result["error"] if result else f"it exited with code {done.returncode} and no result"
+        tail = done.stderr.strip()[-1500:]
+        raise Stop(
+            f"cnverc's engine could not run: {why}"
+            + (f"\n{tail}" if tail else "")
+            + "\nRun whisper-to-onnx/steps/0_doctor.py to see which file or DLL is at fault."
+        )
+    return result
 
 
 def similarity(a: str, b: str) -> float:

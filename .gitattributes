@@ -1,0 +1,5 @@
+# Same bytes on every machine, whatever core.autocrlf says. git apply needs the
+# patch with the line endings it was made with.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.wav binary

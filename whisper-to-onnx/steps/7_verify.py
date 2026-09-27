@@ -29,7 +29,7 @@ from common import (
 def cnverc_exe(root: Path) -> Path:
     exe = root / ("cnverc.exe" if platform.system() == "Windows" else "cnverc")
     if not exe.is_file():
-        raise Stop(f"cnverc is not at {exe}. Set cnverc.path in the config to its folder.")
+        raise Stop(f"cnverc is not at {exe}. Set cnverc_path in machine.yaml to its folder.")
     return exe
 
 
@@ -58,7 +58,10 @@ def step() -> None:
     if not (built / "engine.toml").is_file():
         raise Stop(f"{built} is missing. Run step 6 first.")
     if "cnverc" not in config or "path" not in config["cnverc"]:
-        raise Stop("set cnverc.path in the config to the folder cnverc.exe is in")
+        raise Stop(
+            "set cnverc_path in machine.yaml (copy machine.example.yaml) to the folder "
+            "cnverc.exe is in"
+        )
     root = Path(config["cnverc"]["path"]).expanduser().resolve()
     exe = cnverc_exe(root)
     asr = root / "models" / "asr"

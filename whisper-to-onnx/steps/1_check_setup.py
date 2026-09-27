@@ -10,6 +10,8 @@ import importlib.metadata
 import platform
 import re
 import subprocess
+import sys
+from pathlib import Path
 
 from common import (
     EXPORT_SCRIPT,
@@ -37,9 +39,20 @@ def git(*argv, cwd=SHERPA) -> str:
     return result.stdout.strip()
 
 
+def doctor() -> None:
+    """Step 0, in its own process: it loads cnverc's engine, which must not
+    share a process with anything else."""
+    heading("This machine (0_doctor.py)")
+    sys.stdout.flush()
+    done = subprocess.run([sys.executable, str(Path(__file__).with_name("0_doctor.py"))])
+    if done.returncode != 0:
+        raise Stop("0_doctor.py found a problem with this machine; see above.")
+
+
 def step() -> None:
     a = args(__doc__)
     config = load_config(a.config)
+    doctor()
     run = run_dir(config)
     run.mkdir(parents=True, exist_ok=True)
     setup_dir = fresh_dir(run / "setup", a.force)
@@ -71,6 +84,9 @@ def step() -> None:
         SHERPA.parent.mkdir(parents=True, exist_ok=True)
         git(
             "clone",
+            # Byte-identical on every machine, whatever this one's git defaults to.
+            "-c",
+            "core.autocrlf=false",
             "--depth",
             "1",
             "--branch",
