@@ -14,6 +14,84 @@ sit beside it in their own folder.
 This is a separate project on purpose. It's Python, it downloads from the internet, and cnverc
 itself must never do either. The two meet only at the model folder.
 
+## Quick start
+
+This is a command-line tool, not a window you open. You run it from PowerShell, one step at a
+time, and each step prints what it did. At the end, the converted model appears in cnverc's
+recognizer list.
+
+**Once per computer**
+
+1. Install Git and uv, then close PowerShell and open a new one:
+
+   ```powershell
+   winget install Git.Git astral-sh.uv
+   ```
+
+2. Get the code and set it up. This takes a few minutes the first time:
+
+   ```powershell
+   cd D:\AI_Data\projects
+   git clone https://github.com/Cvio/model-converter.git
+   cd model-converter
+   .\setup.ps1
+   ```
+
+   It should end with `OK. This machine can run every step.` If it doesn't, see
+   [On another PC](#on-another-pc), step 4.
+
+3. Tell it where cnverc is. Copy `machine.example.yaml` to `machine.yaml`, open it in Notepad,
+   and set `cnverc_path` to the folder that has `cnverc.exe` in it.
+
+**Each time you convert a model**
+
+1. Pick a config from `whisper-to-onnx\configs\`, or copy one and change the model name in it.
+2. Make sure the recording it names under `test:` exists in `test_audio\`.
+3. Open PowerShell in the `model-converter` folder and run:
+
+   ```powershell
+   .\convert.ps1 whisper-to-onnx\configs\es-small-hitz.yaml
+   ```
+
+   Use the config you picked. It runs all seven steps in order and stops at the first one that
+   fails. Steps 2 and 4 take the longest: step 2 downloads the model and step 4 converts it. If
+   PowerShell refuses to run scripts, start it with
+   `powershell -ExecutionPolicy Bypass -File .\convert.ps1 ...` instead.
+
+4. Open cnverc, tick **Compare recognizers**, and speak. The new model is listed beside the
+   ones you already have.
+
+**If a step stops**
+
+It prints `STOP:` and the reason, and then the command that picks up where it left off, for
+example:
+
+```powershell
+.\convert.ps1 whisper-to-onnx\configs\es-small-hitz.yaml -From 4
+```
+
+Fix what it says, then run that command. The steps that already passed aren't repeated. To
+redo a whole conversion from scratch, add `-Force`.
+
+**Running the steps one at a time**
+
+`convert.ps1` just runs these commands in order. You can run them yourself instead, for
+example to look at a step's output before going on. Add `--force` to rerun a step that has
+already made its output folder.
+
+```powershell
+$c = "whisper-to-onnx\configs\es-small-hitz.yaml"
+uv run python whisper-to-onnx\steps\1_check_setup.py --config $c
+uv run python whisper-to-onnx\steps\2_download.py --config $c
+uv run python whisper-to-onnx\steps\3_to_openai_format.py --config $c
+uv run python whisper-to-onnx\steps\4_export_onnx.py --config $c
+uv run python whisper-to-onnx\steps\5_check_int8.py --config $c
+uv run python whisper-to-onnx\steps\6_assemble.py --config $c
+uv run python whisper-to-onnx\steps\7_verify.py --config $c
+```
+
+Everything after this section is detail: what the steps do, and why.
+
 ## Setting it up
 
 You need 64-bit Windows, [Git](https://git-scm.com) and [uv](https://docs.astral.sh/uv/) 0.11
@@ -214,6 +292,7 @@ listening test, which hasn't been done yet.
 model-converter/
   pyproject.toml        the Python environment (uv); uv.lock pins every version
   setup.ps1             installs everything into this folder and runs the doctor
+  convert.ps1           runs the seven steps for one config, in order
   machine.example.yaml  copy to machine.yaml: this PC's paths (not committed)
   whisper-to-onnx/
     configs/            one .yaml per model
@@ -224,4 +303,7 @@ model-converter/
   .uv/  .venv/          uv's cache and Python, and the environment (not committed)
   runs/<run_name>/      everything a run produces (not committed)
   whisper-to-onnx-converter.md   the original instructions this was built from
+```
+``` html
+  https://www.kaggle.com/datasets/husseincamus/iraqi-conversational-voice-recordings-dataset
 ```
