@@ -209,3 +209,25 @@ def similarity(a: str, b: str) -> float:
     if not wa and not wb:
         return 1.0
     return difflib.SequenceMatcher(None, wa, wb).ratio()
+
+
+def char_similarity(a: str, b: str) -> float:
+    """Character-level agreement between two transcripts, 0..1, ignoring case,
+    punctuation and spaces.
+
+    The pass/fail checks use this rather than similarity(). One space placed
+    differently (Arabic "مو كلنا" / "موكلنا") or one clitic spelled differently
+    costs several words in a word-level score, which on a ten-word clip is the
+    difference between passing and failing, but only a character or two here.
+    A broken model still scores low: its text is wrong everywhere.
+    """
+    import difflib
+    import re
+
+    def chars(s: str) -> str:
+        return re.sub(r"[^\w]", "", s.lower())
+
+    ca, cb = chars(a), chars(b)
+    if not ca and not cb:
+        return 1.0
+    return difflib.SequenceMatcher(None, ca, cb, autojunk=False).ratio()

@@ -22,13 +22,15 @@ from common import (
     main,
     read_json,
     run_dir,
+    char_similarity,
     similarity,
     test_wav,
     transcribe_like_cnverc,
     write_json,
 )
 
-# int8 may change a word or two on a short clip. Below this, it is broken.
+# int8 may change a word or two on a short clip. Below this share of
+# characters (common.char_similarity), it is broken.
 SENSIBLE = 0.85
 
 
@@ -67,13 +69,20 @@ def step() -> None:
     def judge(label: str, encoder, decoder) -> bool:
         text = transcribe_like_cnverc(encoder, decoder, tokens, wav, language)
         agreement = similarity(reference, text)
-        ok = bool(text.strip()) and agreement >= SENSIBLE
+        chars = char_similarity(reference, text)
+        ok = bool(text.strip()) and chars >= SENSIBLE
         print(f"  {text}")
         print(
-            f"  {agreement:.0%} agreement with fp32, {total_mb(encoder, decoder):,.0f} MB "
-            f"(fp32 is {fp32_mb:,.0f} MB): " + ("sensible" if ok else "not sensible")
+            f"  {chars:.0%} of characters and {agreement:.0%} of words agree with fp32, "
+            f"{total_mb(encoder, decoder):,.0f} MB (fp32 is {fp32_mb:,.0f} MB): "
+            + ("sensible" if ok else "not sensible")
         )
-        results[label] = {"text": text, "agreement_with_fp32": agreement, "ok": ok}
+        results[label] = {
+            "text": text,
+            "agreement_with_fp32": agreement,
+            "char_agreement_with_fp32": chars,
+            "ok": ok,
+        }
         return ok
 
     results = {"fp32": {"text": reference}}

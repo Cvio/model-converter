@@ -1,4 +1,6 @@
-# A full fine-tune of Whisper large-v3-turbo on , MIT licence, F32 safetensors.
+# A full fine-tune of Whisper large-v3-turbo on dialectal Arabic (Levantine, Maghrebi, Egyptian,
+# Gulf, Sudanese, Iraqi and MSA), Apache-2.0, F32 safetensors (3.2 GB). Its output has no
+# diacritics, so neither will the transcripts in steps 3 to 7.
 # Same architecture as the Whisper turbo cnverc already runs, so the comparison in step 7 is
 # fair. It is also 128-mel, which is what the export script's name rule got wrong.
 model_id: oddadmix/whisper-large-v3-turbo-arabic-dialectal

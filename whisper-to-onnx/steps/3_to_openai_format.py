@@ -26,6 +26,7 @@ from common import (
     load_config,
     main,
     run_dir,
+    char_similarity,
     similarity,
     test_wav,
     write_json,
@@ -258,7 +259,8 @@ def step() -> None:
     openai_text = transcribe_openai(checkpoint, wav, language)
     print(f"  OpenAI:       {openai_text}")
     agreement = similarity(hf_text, openai_text)
-    print(f"  agreement: {agreement:.0%} of words")
+    chars = char_similarity(hf_text, openai_text)
+    print(f"  agreement: {chars:.0%} of characters, {agreement:.0%} of words")
 
     write_json(
         out / "transcripts.json",
@@ -266,18 +268,25 @@ def step() -> None:
             "hugging_face": hf_text,
             "openai": openai_text,
             "agreement": agreement,
+            "char_agreement": chars,
             "max_logit_difference": diff,
         },
     )
     if not openai_text.strip():
         raise Stop("the converted checkpoint transcribed nothing")
     # The logits already prove the mapping. The two libraries decode a little
-    # differently, so a word or two may differ; much more means something else
-    # is wrong, such as the language or the test recording.
-    if agreement < 0.8:
+    # differently (a space, a spelling), so words may differ; text that differs
+    # throughout means something else is wrong, such as the language or the
+    # test recording. Judged by characters: see common.char_similarity.
+    if chars < 0.8:
         raise Stop(
-            "the transcripts differ by far more than decoding differences explain. Check the "
-            "language and the test recording before going further."
+            f"the transcripts share only {chars:.0%} of their characters, far more difference "
+            f"than decoding explains. Check the language and the test recording."
+        )
+    if agreement < 0.8:
+        print(
+            "  The words differ more than the characters: the two libraries split or spell a "
+            "word or two differently. The logits above are what prove the conversion."
         )
     print("\nOK. The converted checkpoint computes what the original computes.")
 
