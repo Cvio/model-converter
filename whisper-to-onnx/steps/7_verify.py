@@ -1,11 +1,11 @@
-"""Step 7: install the folder into cnverc and check cnverc accepts it.
+"""Step 7: install the folder into volis and check volis accepts it.
 
-Copies out/<folder_name> into cnverc's models/asr/ and runs cnverc --report.
+Copies out/<folder_name> into volis's models/asr/ and runs volis --report.
 The new model must be listed as ok, with [+] beside every file. An existing
 folder of the same name is never replaced unless --force is given.
 
 Whether the model is any good is a separate question, answered by listening:
-the comparison printed at the end runs it beside the model cnverc already has.
+the comparison printed at the end runs it beside the model volis already has.
 """
 
 import platform
@@ -27,14 +27,20 @@ from common import (
 
 
 def cnverc_exe(root: Path) -> Path:
-    exe = root / ("cnverc.exe" if platform.system() == "Windows" else "cnverc")
+    """volis's program in root: volis.exe, or cnverc.exe from before the rename."""
+    suffix = ".exe" if platform.system() == "Windows" else ""
+    for name in ("volis", "cnverc"):
+        exe = root / f"{name}{suffix}"
+        if exe.is_file():
+            return exe
+    exe = root / f"volis{suffix}"
     if not exe.is_file():
-        raise Stop(f"cnverc is not at {exe}. Set cnverc_path in machine.yaml to its folder.")
+        raise Stop(f"volis is not at {exe}. Set volis_path in machine.yaml to its folder.")
     return exe
 
 
 def report_block(report: str, folder_name: str) -> list:
-    """The lines of `cnverc --report` about one model: its row, then every
+    """The lines of `volis --report` about one model: its row, then every
     indented line beneath it."""
     lines = report.splitlines()
     for i, line in enumerate(lines):
@@ -59,14 +65,14 @@ def step() -> None:
         raise Stop(f"{built} is missing. Run step 6 first.")
     if "cnverc" not in config or "path" not in config["cnverc"]:
         raise Stop(
-            "set cnverc_path in machine.yaml (copy machine.example.yaml) to the folder "
-            "cnverc.exe is in"
+            "set volis_path in machine.yaml (copy machine.example.yaml) to the folder "
+            "volis.exe is in"
         )
     root = Path(config["cnverc"]["path"]).expanduser().resolve()
     exe = cnverc_exe(root)
     asr = root / "models" / "asr"
     if not asr.is_dir():
-        raise Stop(f"{asr} does not exist; is {root} a cnverc folder?")
+        raise Stop(f"{asr} does not exist; is {root} a volis folder?")
 
     heading(f"Installing into {asr}")
     target = asr / folder_name
@@ -81,7 +87,7 @@ def step() -> None:
     for path in sorted(target.iterdir()):
         print(f"  {path.name}")
 
-    heading("cnverc --report")
+    heading("volis --report")
     result = subprocess.run(
         [str(exe), "--report"],
         cwd=root,
@@ -94,18 +100,18 @@ def step() -> None:
     block = report_block(result.stdout, folder_name)
     if not block:
         print(result.stdout[-3000:])
-        raise Stop(f"cnverc --report does not list {folder_name}")
+        raise Stop(f"volis --report does not list {folder_name}")
     print("\n".join(block))
 
     status = block[0].split()[-1]
     files = [line.strip() for line in block if line.strip().startswith("[")]
     if status != "ok":
-        raise Stop(f"cnverc lists {folder_name} as '{' '.join(block[0].split()[3:])}', not ok")
+        raise Stop(f"volis lists {folder_name} as '{' '.join(block[0].split()[3:])}', not ok")
     if not files or any(not f.startswith("[+]") for f in files):
-        raise Stop("cnverc could not find every file the engine.toml names")
-    print(f"\n  cnverc lists {folder_name} as ok, with every file present.")
+        raise Stop("volis could not find every file the engine.toml names")
+    print(f"\n  volis lists {folder_name} as ok, with every file present.")
 
-    heading(f"Transcribing with sherpa-onnx {SHERPA_TAG}, as cnverc does")
+    heading(f"Transcribing with sherpa-onnx {SHERPA_TAG}, as volis does")
     import tomllib
 
     files = tomllib.loads((target / "engine.toml").read_text(encoding="utf-8"))["files"]
@@ -119,14 +125,14 @@ def step() -> None:
     print(f"  {text}")
     if not text:
         raise Stop(
-            "sherpa-onnx loaded the model but transcribed nothing. cnverc would show "
+            "sherpa-onnx loaded the model but transcribed nothing. volis would show "
             "'nothing recognised' for every utterance."
         )
-    print(f"\nOK. cnverc can load {folder_name} and it transcribes the test recording.")
+    print(f"\nOK. volis can load {folder_name} and it transcribes the test recording.")
 
     heading("Now listen to it")
     print(
-        f"  1. Open cnverc ({exe}), tick 'Compare recognizers', press Start and speak "
+        f"  1. Open volis ({exe}), tick 'Compare recognizers', press Start and speak "
         f"{config['language']}.\n"
         f"     Or, in a terminal: \"{exe}\" --listen --compare\n"
         f"  2. Every installed recognizer transcribes the same audio, side by side, with its "

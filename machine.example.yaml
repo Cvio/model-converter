@@ -1,6 +1,7 @@
 # What differs between PCs. Copy this to machine.yaml (which is not committed)
 # and edit it. A model config's own value wins over anything here.
 
-# The folder cnverc.exe is in. Step 7 installs converted models into its
-# models\asr\ and runs "cnverc --report" there.
-cnverc_path: D:/AI_Data/projects/cnverc/target/release
+# The folder volis.exe is in. Step 7 installs converted models into its
+# models\asr\ and runs "volis --report" there. (cnverc_path, the name from
+# before volis was renamed, still works.)
+volis_path: D:/AI_Data/projects/volis/target/release

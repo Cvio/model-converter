@@ -2,7 +2,7 @@
 has to satisfy.
 
 Prints the versions in use, makes sure sherpa-onnx is checked out at the tag
-cnverc links, and reads scripts/whisper/export-onnx.py as it is on disk: its
+volis links, and reads scripts/whisper/export-onnx.py as it is on disk: its
 behaviour has changed between versions, so nothing is assumed about it.
 """
 
@@ -40,7 +40,7 @@ def git(*argv, cwd=SHERPA) -> str:
 
 
 def doctor() -> None:
-    """Step 0, in its own process: it loads cnverc's engine, which must not
+    """Step 0, in its own process: it loads volis's engine, which must not
     share a process with anything else."""
     heading("This machine (0_doctor.py)")
     sys.stdout.flush()
@@ -100,7 +100,7 @@ def step() -> None:
     print(f"  {SHERPA}\n  commit {commit} ({described})")
     if described != SHERPA_TAG:
         raise Stop(
-            f"sherpa-onnx is at {described}, not {SHERPA_TAG}. cnverc links {SHERPA_TAG}, and "
+            f"sherpa-onnx is at {described}, not {SHERPA_TAG}. volis links {SHERPA_TAG}, and "
             f"the ONNX metadata must match what its runtime reads. Delete {SHERPA} and rerun."
         )
     if git("status", "--porcelain"):

@@ -1,4 +1,4 @@
-"""Step 6: build the model folder cnverc reads.
+"""Step 6: build the model folder volis reads.
 
     <engine.folder_name>/
       engine.toml
@@ -6,10 +6,10 @@
       decoder.int8.onnx
       tokens.txt
 
-engine.toml is checked against what cnverc's model reader accepts
-(cnverc/src/models.rs): only the keys name, kind, backend, languages,
-data_dir and files; every file it names present; and at least one language.
-Anything else and cnverc lists the model as broken.
+engine.toml is checked against what volis's model reader accepts
+(volis's src/models.rs): only the keys name, kind, backend, languages,
+varieties, data_dir and files; every file it names present; and at least one language.
+Anything else and volis lists the model as broken.
 """
 
 import re
@@ -18,8 +18,8 @@ import tomllib
 
 from common import Stop, args, fresh_dir, heading, load_config, main, read_json, run_dir
 
-ALLOWED_KEYS = {"name", "kind", "backend", "languages", "data_dir", "files"}
-# The file roles cnverc's Whisper loader asks for (cnverc/src/asr.rs).
+ALLOWED_KEYS = {"name", "kind", "backend", "languages", "varieties", "data_dir", "files"}
+# The file roles volis's Whisper loader asks for (volis's src/asr.rs).
 WHISPER_ROLES = {"encoder", "decoder", "tokens"}
 
 
@@ -31,14 +31,14 @@ def check_engine_toml(folder) -> dict:
     parsed = tomllib.loads((folder / "engine.toml").read_text(encoding="utf-8"))
     extra = set(parsed) - ALLOWED_KEYS
     if extra:
-        raise Stop(f"engine.toml has keys cnverc rejects: {', '.join(sorted(extra))}")
+        raise Stop(f"engine.toml has keys volis rejects: {', '.join(sorted(extra))}")
     for key in ("name", "kind", "backend", "files"):
         if key not in parsed:
             raise Stop(f"engine.toml has no '{key}'")
     if parsed["kind"] != "segment" or parsed["backend"] != "whisper":
         raise Stop("engine.toml must say kind = \"segment\" and backend = \"whisper\"")
     if not parsed.get("languages"):
-        raise Stop("engine.toml declares no languages; cnverc would never pick this model")
+        raise Stop("engine.toml declares no languages; volis would never pick this model")
     roles = set(parsed["files"])
     if roles != WHISPER_ROLES:
         raise Stop(f"[files] must declare exactly {sorted(WHISPER_ROLES)}, not {sorted(roles)}")
@@ -66,9 +66,20 @@ def step() -> None:
     for code in engine["languages"]:
         if not re.fullmatch(r"[a-z]{2,3}", code):
             raise Stop(f"{code!r} is not a language code like 'es' (engine.languages)")
+    # A variety is a language plus a region, such as es-MX (volis's src/varieties.rs).
+    # volis checks it against its own table; here, only its shape and its language.
+    varieties = engine.get("varieties") or []
+    for tag in varieties:
+        if not re.fullmatch(r"[a-z]{2,3}-[A-Z]{2}", tag):
+            raise Stop(f"{tag!r} is not a variety like 'es-MX' (engine.varieties)")
+        if tag.split("-")[0] not in engine["languages"]:
+            raise Stop(
+                f"variety {tag!r} is not a variety of any language in engine.languages; "
+                f"volis would list the model as broken"
+            )
     if config["language"] not in engine["languages"]:
         raise Stop(
-            f"language '{config['language']}' is not in engine.languages; cnverc would not "
+            f"language '{config['language']}' is not in engine.languages; volis would not "
             f"offer this model for the language it was tested in"
         )
 
@@ -98,7 +109,12 @@ def step() -> None:
         f'kind = "segment"\n'
         f'backend = "whisper"\n'
         f"languages = [{languages}]\n"
-        f"\n"
+        + (
+            f"varieties = [{', '.join(toml_string(tag) for tag in varieties)}]\n"
+            if varieties
+            else ""
+        )
+        + f"\n"
         f"# Converted from {config['model_id']} by model-converter (run {name},\n"
         f"# {chosen['method']} weights).\n"
         f"[files]\n"
@@ -114,7 +130,7 @@ def step() -> None:
         print(f"  {path.name:30} {path.stat().st_size / 1e6:10,.1f} MB")
     heading("engine.toml")
     print((folder / "engine.toml").read_text(encoding="utf-8"))
-    print(f"OK. {folder} passes cnverc's engine.toml rules. Step 7 installs and checks it.")
+    print(f"OK. {folder} passes volis's engine.toml rules. Step 7 installs and checks it.")
 
 
 if __name__ == "__main__":

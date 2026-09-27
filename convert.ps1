@@ -68,4 +68,4 @@ $minutes = [math]::Round(((Get-Date) - $started).TotalMinutes, 1)
 Write-Host ""
 $which = if ($From -eq 1) { "All seven steps" } else { "Steps $From to 7" }
 Write-Host "$which passed in $minutes minutes." -ForegroundColor Green
-Write-Host "Open cnverc, tick 'Compare recognizers', and speak to hear the new model." -ForegroundColor Green
+Write-Host "Open volis, tick 'Compare recognizers', and speak to hear the new model." -ForegroundColor Green

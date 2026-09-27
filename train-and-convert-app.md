@@ -26,10 +26,9 @@ one command.
   It's done in a separate session there, under volis's own `CLAUDE.md` rules.
 - If something in this file turns out to be wrong about the repo, stop and say so. Don't work
   around it.
-- The repo has uncommitted work from before this file: edits to `README.md`, one config and
-  three step scripts, plus the untracked `convert.ps1` and `test_audio/`. Before item 1, show the
-  user `git status` and ask whether to commit it as it is. `test_audio/` stays uncommitted (its
-  `.wav` files are ignored on purpose).
+- Before starting an item, show the user `git status`. If there is uncommitted work you didn't
+  make, ask what to do with it. `test_audio/` stays uncommitted (its `.wav` files are ignored on
+  purpose).
 - Commit after each item passes.
 - Some stages can only be finished by the user: listening, rating translations, logging in to
   Hugging Face. The section "What only the user can do", near the end, lists them. When a stage
@@ -150,7 +149,7 @@ Rules for fetching:
 - **Gated datasets:** some require accepting terms on the website and logging in first.
   FLORES+ (`openlanguagedata/flores_plus`) is one. If a download is refused for that reason,
   stop and tell the user to accept the terms on the dataset's page and run
-  `uv run huggingface-cli login`. Don't try to get around it.
+  `uv run hf auth login`. Don't try to get around it.
 - Print the size before downloading anything over 5 GB, and check there's room on the disk.
 
 What the Mexican Spanish jobs need, as a starting list:
@@ -671,8 +670,8 @@ Claude Code stops and asks at each of these:
 
 | When | What | Why it can't be automated |
 |---|---|---|
-| Before item 1 | Decide whether to commit the existing uncommitted work | It's the user's work |
-| Item 2 | Accept FLORES+'s terms on Hugging Face and run `uv run huggingface-cli login` | The dataset is gated behind an account |
+| Before any item | Decide what to do with uncommitted work Claude didn't make | It's the user's work |
+| Item 2 | Accept FLORES+'s terms on Hugging Face and run `uv run hf auth login` | The dataset is gated behind an account |
 | Item 2 | Choose and download the teacher GGUF (or approve the download), and set `teacher_gguf` in `machine.yaml` | It's tens of GB, and depends on the machine |
 | Item 2 | Install NVIDIA's CUDA toolkit, only if no prebuilt CUDA `llama-server` works | Installs system software |
 | Item 3 | Listen to the ten before-and-after clips W5 prints, and try the model in volis with **Compare recognizers** | Numbers can improve while speech gets worse |

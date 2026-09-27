@@ -1,6 +1,6 @@
 """Step 5: choose int8 files that still transcribe sensibly.
 
-int8 roughly quarters the size, and cnverc's other models are int8. Its
+int8 roughly quarters the size, and volis's other models are int8. Its
 transcript won't be identical to fp32's and doesn't need to be, but it must
 still be sensible.
 
@@ -10,7 +10,7 @@ still be sensible.
    better on smaller models.
 3. If neither is, stop. Setting use_fp32: true ships the full-size files.
 
-Every candidate is transcribed with the engine cnverc runs, the same way as
+Every candidate is transcribed with the engine volis runs, the same way as
 the fp32 reference, so only the quantization differs.
 """
 
@@ -62,7 +62,7 @@ def step() -> None:
         )
         return
 
-    heading("The reference: fp32, in cnverc's engine")
+    heading("The reference: fp32, in volis's engine")
     reference = transcribe_like_cnverc(*fp32_files, tokens, wav, language)
     print(f"  {reference}")
 
@@ -126,7 +126,7 @@ def step() -> None:
     )
     print(f"\nOK. Step 6 will ship the {method} int8 files.")
     print(
-        "  One short clip is a thin basis. Step 7's comparison inside cnverc, on real "
+        "  One short clip is a thin basis. Step 7's comparison inside volis, on real "
         "speech, is the real judge."
     )
 

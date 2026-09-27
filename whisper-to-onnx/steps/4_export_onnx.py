@@ -11,7 +11,7 @@ The script writes int8 copies itself; step 5 decides whether to use them.
 
 The export is checked two ways: exactly, by comparing the ONNX files' outputs
 with the checkpoint's on the same input, and in practice, by transcribing the
-test recording with the engine cnverc runs.
+test recording with the engine volis runs.
 """
 
 import shutil
@@ -75,7 +75,7 @@ def onnx_vs_pytorch(encoder: Path, decoder: Path, checkpoint: Path, wav: Path, l
     """Run the exported encoder and decoder on exactly the input the PyTorch
     checkpoint gets, and return the largest difference between their logits.
 
-    This is the exact check of the export. Transcribing is not: cnverc's engine
+    This is the exact check of the export. Transcribing is not: volis's engine
     computes its features with a different library from PyTorch Whisper's, which
     on an ambiguous stretch of audio can change a word even when the export is
     perfect.
@@ -205,7 +205,7 @@ def step() -> None:
         )
     print(f"  within {ONNX_TOLERANCE}: the export computes what the checkpoint computes")
 
-    heading("Transcribing with the exported files, in cnverc's engine")
+    heading("Transcribing with the exported files, in volis's engine")
     text = transcribe_like_cnverc(
         expected["encoder"], expected["decoder"], expected["tokens"], wav, config["language"]
     )
@@ -213,7 +213,7 @@ def step() -> None:
     print(f"  step 3 (PyTorch): {step3['openai']}")
     print(f"  ONNX fp32:        {text}")
     print(
-        f"  agreement: {agreement:.0%} of words. cnverc's engine computes its audio features "
+        f"  agreement: {agreement:.0%} of words. volis's engine computes its audio features "
         f"with a different library from PyTorch Whisper's, so a word may differ on an unclear "
         f"stretch; the exact check above is what proves the export."
     )
@@ -222,7 +222,7 @@ def step() -> None:
         {"text": text, "agreement_with_step3": agreement, "max_logit_difference": diff},
     )
     if not text.strip():
-        raise Stop("cnverc's engine transcribed nothing with the exported files")
+        raise Stop("volis's engine transcribed nothing with the exported files")
     print("\nOK. The ONNX export computes what the checkpoint computes.")
 
 

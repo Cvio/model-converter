@@ -1,14 +1,14 @@
-"""cnverc's engine, alone in its own process.
+"""volis's engine, alone in its own process.
 
 Transcribes one wav with the sherpa-onnx Python package, given the settings
-cnverc uses, and prints one line of JSON. common.transcribe_like_cnverc runs
+volis uses, and prints one line of JSON. common.transcribe_like_cnverc runs
 this as a subprocess; nothing else should import it.
 
 Why a separate process: Windows reuses a DLL that is already loaded under the
 same name. If the step had already imported the onnxruntime Python package
 (1.30, for the logits check and quantization), sherpa-onnx would silently run
 on that instead of the onnxruntime.dll sherpa-onnx-core ships beside it
-(1.28.2, the one cnverc links). This process never imports onnxruntime, and
+(1.28.2, the one volis links). This process never imports onnxruntime, and
 checks which onnxruntime.dll it actually got before trusting a transcript.
 
     python engine_worker.py --selftest --expect-ort 1.28.2
@@ -128,7 +128,7 @@ def check_runtime(expect: str) -> dict:
         )
     if found != expect:
         raise Refuse(
-            f"{path} is onnxruntime {found}, but cnverc links {expect}. Run "
+            f"{path} is onnxruntime {found}, but volis links {expect}. Run "
             f"'uv sync --locked --reinstall' (through setup.ps1)."
         )
     return info

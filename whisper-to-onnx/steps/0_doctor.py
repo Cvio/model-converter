@@ -5,7 +5,7 @@ Needs no config. setup.ps1 runs it after installing, and step 1 runs it first.
   1. Every native file (.dll, .pyd) the installed packages list is present and
      unaltered. Security software that quarantines a DLL leaves a package
      that imports fine until the step that needs that DLL.
-  2. cnverc's engine loads, on the onnxruntime cnverc links (in its own
+  2. volis's engine loads, on the onnxruntime volis links (in its own
      process), and torch and onnxruntime import (in another).
   3. Informational: other onnxruntime.dll copies on this machine, and whether
      McAfee/Trellix is installed, with the folder to ask to exclude.
@@ -192,7 +192,7 @@ def step() -> None:
             f"looks like."
         )
 
-    heading("cnverc's engine (its own process)")
+    heading("volis's engine (its own process)")
     try:
         engine = engine_selftest()
         report["engine"] = engine
@@ -200,7 +200,7 @@ def step() -> None:
     except Stop as e:
         report["engine"] = {"ok": False, "error": str(e)}
         print(f"  FAILED: {e}")
-        problems.append("cnverc's engine does not load on the runtime cnverc links")
+        problems.append("volis's engine does not load on the runtime volis links")
 
     heading("torch and onnxruntime (another process)")
     imports = check_imports()

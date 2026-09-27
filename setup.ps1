@@ -71,5 +71,5 @@ finally {
 }
 
 if (-not (Test-Path (Join-Path $repo "machine.yaml"))) {
-    Write-Host "`nNext: copy machine.example.yaml to machine.yaml and set cnverc_path." -ForegroundColor Yellow
+    Write-Host "`nNext: copy machine.example.yaml to machine.yaml and set volis_path." -ForegroundColor Yellow
 }

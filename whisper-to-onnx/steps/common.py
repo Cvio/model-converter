@@ -15,9 +15,9 @@ import yaml
 # model-converter/
 REPO = Path(__file__).resolve().parents[2]
 SHERPA = REPO / "vendor" / "sherpa-onnx"
-SHERPA_TAG = "v1.13.8"  # the version cnverc links; see README
+SHERPA_TAG = "v1.13.8"  # the version volis links; see README
 # The onnxruntime sherpa-onnx 1.13.8 is built against. sherpa-onnx-core ships
-# it, and cnverc.exe links it statically.
+# it, and volis.exe links it statically.
 SHERPA_ORT_VERSION = "1.28.2"
 ENGINE_WORKER = Path(__file__).resolve().parent / "engine_worker.py"
 # This machine's paths, kept out of the committed configs.
@@ -57,8 +57,10 @@ def load_config(path: str) -> dict:
             raise Stop(f"{config_path} has no 'engine.{key}'")
     config["_path"] = config_path
     machine = load_machine()
-    if machine.get("cnverc_path") and not config.get("cnverc", {}).get("path"):
-        config.setdefault("cnverc", {})["path"] = machine["cnverc_path"]
+    # volis_path is the current name; cnverc_path (from before the rename) still works.
+    app_path = machine.get("volis_path") or machine.get("cnverc_path")
+    if app_path and not config.get("cnverc", {}).get("path"):
+        config.setdefault("cnverc", {})["path"] = app_path
     return config
 
 
@@ -83,7 +85,7 @@ def test_wav(config: dict) -> Path:
         raise Stop(
             f"the test wav is not at {wav}. Recordings are not committed (they are voices), "
             f"so a fresh clone has none: record a few seconds in {config['language']!r} with "
-            f"'cnverc --listen --wav' (it saves 16 kHz mono to logs/segments/), or convert any "
+            f"'volis --listen --wav' (it saves 16 kHz mono to logs/segments/), or convert any "
             f"clip with 'ffmpeg -i in.wav -ar 16000 -ac 1 {wav.name}', and put it there."
         )
     return wav
@@ -137,10 +139,10 @@ def heading(text: str) -> None:
 
 
 def transcribe_like_cnverc(encoder, decoder, tokens, wav, language: str) -> str:
-    """Transcribe with the engine cnverc runs, given the settings cnverc uses.
+    """Transcribe with the engine volis runs, given the settings volis uses.
 
-    The sherpa-onnx Python package at the version cnverc links wraps the same
-    C++ recognizer, and WhisperAsr in cnverc/src/asr.rs configures it this way.
+    The sherpa-onnx Python package at the version volis links wraps the same
+    C++ recognizer, and WhisperAsr in volis's src/asr.rs configures it this way.
     This, not sherpa-onnx's scripts/whisper/test.py, is the judge: test.py
     decodes in its own Python loop, and on whisper-small its int8 transcript
     was far worse than what the C++ engine makes of the same files.
@@ -164,7 +166,7 @@ _ENGINE_SHOWN = False
 
 
 def engine_selftest() -> dict:
-    """Load cnverc's engine without a model and report which runtime it got."""
+    """Load volis's engine without a model and report which runtime it got."""
     return _engine("--selftest")
 
 
@@ -189,7 +191,7 @@ def _engine(*argv) -> dict:
         why = result["error"] if result else f"it exited with code {done.returncode} and no result"
         tail = done.stderr.strip()[-1500:]
         raise Stop(
-            f"cnverc's engine could not run: {why}"
+            f"volis's engine could not run: {why}"
             + (f"\n{tail}" if tail else "")
             + "\nRun whisper-to-onnx/steps/0_doctor.py to see which file or DLL is at fault."
         )
