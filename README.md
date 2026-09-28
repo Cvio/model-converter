@@ -272,6 +272,26 @@ model-converter is growing from convert-only into a train-and-convert app
   teacher models (`teacher_gguf:`, a list) and the server (`llama_server:`).
   `uv run --project training python teacher/check.py` punctuates ten CIEMPIESS lines and checks
   no word changed.
+- **Whisper jobs, W1 to W8.** A job file in `jobs/` describes the base model, the data and the
+  LoRA; two commands do the rest:
+
+  ```powershell
+  .\fetch.ps1 jobs\es-mx-whisper-small-rehearsal.yaml
+  .\train.ps1 jobs\es-mx-whisper-small-rehearsal.yaml
+  ```
+
+  `train.ps1` runs the stages in order and stops at the first failed check, printing
+  `.\train.ps1 <job> -From W4` to carry on. A finished stage isn't repeated; `-Force` redoes
+  them. The stages: W1 check the model and data; W2 prepare (16 kHz, split by speaker, restore
+  punctuation, mix in ordinary speech); W3 score the base model; W4 train the LoRA (encoder and
+  decoder, best validation checkpoint kept); W5 compare base and tuned (stops if the dialect
+  didn't improve or ordinary speech got over a point worse); W6 merge, and check the merged model
+  scores like base + LoRA; W7 run the converter's seven steps on it; W8 score the int8 model in
+  volis's engine. Everything goes in `runs/<job>/`.
+
+  `jobs/es-mx-whisper-small-rehearsal.yaml` is a quick run of every stage on about an hour of
+  CIEMPIESS with whisper-small (about an hour on an 8 GB laptop GPU). `jobs/es-mx-whisper.yaml`
+  is the real job, for the 5090.
 
 ### Things that went wrong while building it
 
@@ -290,6 +310,27 @@ model-converter is growing from convert-only into a train-and-convert app
   those cases; the word-for-word check catches any it still makes.
 - **CUDA 12.4 builds of llama.cpp don't run on the RTX 5090** (Blackwell). The pinned build is
   CUDA 13.4, which runs on it and on the laptop's RTX 4070.
+- **Separate datasets reuse speaker IDs.** CIEMPIESS LIGHT and CIEMPIESS TEST both have speakers
+  F_01 to M_10, and they are different people ("Speakers in the CL are not present in any other
+  CIEMPIESS dataset"). W2 labels each ID with its dataset, so the overlap check counts people,
+  not labels.
+- **The written accent on question words isn't a changed word.** The teacher adds ¿ and ?, and
+  with them qué, cómo, dónde; CIEMPIESS leaves those accents out. Counting que -> qué as a
+  changed word threw away 15% of lines. The word check now ignores accent marks (not ñ).
+- **Gradient checkpointing can silently freeze Whisper's encoder LoRA.**
+  `enable_input_require_grads()` only reaches the decoder: the encoder's input comes from a
+  frozen convolution, so nothing flowing into its checkpointed layers needs gradients. W4 hooks
+  the first convolution and checks every encoder LoRA weight gets a gradient before the first
+  step. (Checking that weights moved after the first step doesn't work: the learning rate warms
+  up from zero.)
+- **A little dialect data can hurt ordinary speech.** The rehearsal (1.6 h, 8 speakers) improved
+  CIEMPIESS test WER from 16.5 to 12.7 but made FLEURS 1.67 points worse: CIEMPIESS writes
+  numbers as words ("seis y media") and the model copied it. `data.mix` mixes ordinary speech into
+  training (the real job: a fifth FLEURS `es_419` train); the rehearsal job loosens the limit to
+  2.0 instead, so it could prove the later stages.
+- **The converter's engine loads the model once per clip.** Fine for one test clip; slow for
+  W8's hundreds. `engine_worker.py` has a `--wav-list` mode (`transcribe_many_like_cnverc`) that
+  loads it once; its one-clip behaviour and runtime checks are unchanged.
 
 ## Security software (McAfee, Trellix and the like)
 
@@ -344,10 +385,13 @@ model-converter/
   vendor/               sherpa-onnx at v1.13.8, cloned by step 1 (not committed)
   .uv/  .venv/          uv's cache and Python, and the environment (not committed)
   runs/<run_name>/      everything a run produces (not committed)
+  train.ps1             runs every stage of a training job, in order
   fetch.ps1             downloads a job's hf: models and datasets into inputs/
+  jobs/                 one .yaml per training job
   inputs/               base models, datasets and teacher models (not committed)
   training/             the training environment (its own uv project, CUDA PyTorch)
-    steps/              common.py, fetch.py, gpu_check.py
+    steps/              common.py, fetch.py, gpu_check.py, textnorm.py, whisper_common.py
+      whisper/          the Whisper job's stages, w1_check.py to w8_int8.py
   teacher/              teacher.py (runs llama-server), get_server.py, check.py
     llama.cpp/          the pinned prebuilt llama-server (not committed)
   train-and-convert-app.md   the plan the training parts are built from

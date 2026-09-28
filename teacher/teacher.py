@@ -209,20 +209,29 @@ def strip_think(text: str) -> str:
 PUNCTUATE_SYSTEM = (
     "You add capital letters and punctuation to a word-for-word transcript of "
     "Spanish speech. Add capitals, commas, full stops, and the opening and closing "
-    "question and exclamation marks (¿ ? ¡ !) where they belong.\n\n"
+    "question and exclamation marks (¿ ? ¡ !) where they belong. You may add the "
+    "written accent a question word takes (qué, cómo, dónde, cuál).\n\n"
     "Every word must stay exactly as it is, in the same order, because the "
     "transcript records what was really said. In particular:\n"
     "- Keep repeated words: \"que que ver\" stays \"que que ver\".\n"
     "- Keep false starts and cut-off words: \"es contra contratada\" stays as it is.\n"
-    "- Keep grammar mistakes and colloquial spellings (pus, namás): never correct them.\n"
+    "- Keep hesitation sounds such as \"e\" and \"este\": \"e la mujer\" stays \"e la mujer\".\n"
+    "- Keep misspellings and grammar mistakes exactly as written (\"echo\", \"hada\", "
+    "\"dejé\"), and colloquial spellings (pus, namás): never correct them.\n"
+    "- Never join or split words: \"porciento\" stays one word, \"por que\" stays two.\n"
     "- Add no word and remove no word.\n\n"
     "Reply with the punctuated transcript only."
 )
 
 
 def words(text: str) -> list:
-    """The words of a line with case and punctuation removed, for comparing."""
-    text = unicodedata.normalize("NFC", text).lower()
+    """The words of a line for comparing: case, punctuation and written accents
+    removed. Accents go because adding one (que -> qué, como -> cómo) belongs
+    with adding ¿ and ?; it doesn't change the word. ñ is kept: año and ano are
+    different words."""
+    text = unicodedata.normalize("NFC", text).lower().replace("ñ", "\0")
+    text = "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
+    text = unicodedata.normalize("NFC", text).replace("\0", "ñ")
     text = re.sub(r"[^\w\s']", " ", text)
     return text.split()
 

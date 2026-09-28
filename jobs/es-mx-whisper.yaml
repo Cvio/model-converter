@@ -1,0 +1,34 @@
+# Whisper large-v3-turbo tuned on Mexican Spanish (CIEMPIESS). Run on the
+# 5090 desktop:  .\train.ps1 jobs\es-mx-whisper.yaml
+kind: whisper
+name: es-mx-whisper                      # its folder under runs/
+base_model: hf:openai/whisper-large-v3-turbo
+language: es                             # what Whisper is told
+variety: es-MX                           # written into engine.toml as varieties
+
+data:
+  train: hf:ciempiess/ciempiess_light
+  test: hf:ciempiess/ciempiess_test      # otherwise 5% of speakers are held back
+  columns: { audio: audio, text: normalized_text, speaker: speaker_id }
+  regression: hf:google/fleurs:es_419@test   # ordinary Latin American Spanish
+  regression_columns: { audio: audio, text: transcription }   # FLEURS has no speaker column; none is needed
+  min_seconds: 0.5
+  max_seconds: 30
+  restore_punctuation: true              # CIEMPIESS has no capitals or punctuation
+  # Ordinary Latin American speech mixed into training (a fifth of the hours),
+  # so the model keeps general Spanish: without it the rehearsal got 1.67 WER
+  # points worse on ordinary speech. raw_transcription is FLEURS's punctuated,
+  # cased text, matching the punctuated CIEMPIESS transcripts.
+  mix:
+    source: hf:google/fleurs:es_419@train
+    columns: { audio: audio, text: raw_transcription }
+    share: 0.2
+
+lora: { rank: 32, alpha: 64, dropout: 0.05 }
+training: { learning_rate: 1.0e-4, warmup_steps: 50, epochs: 3, batch_size: 8,
+            gradient_accumulation: 2, eval_every_steps: 200 }
+
+engine:                                  # passed on to the existing converter
+  folder_name: whisper-large-v3-turbo-es-mx
+  display_name: Whisper large-v3-turbo Mexican Spanish (int8)
+test_wav: test_audio/es-16k.wav          # the converter's own check clip

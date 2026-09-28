@@ -96,18 +96,29 @@ def dataset_files(ref: HfRef) -> tuple:
     """(revision, {path: size}) of the Parquet files for a dataset reference."""
     listing = repo_listing(ref.repo_id, "dataset")
     parquet = {p: s for p, s in listing.items() if p.endswith(".parquet")}
-    revision = None
-    if not parquet:
-        # Published only as a loading script: use the automatic Parquet copy.
-        revision = PARQUET_BRANCH
-        parquet = {p: s for p, s in repo_listing(ref.repo_id, "dataset", revision).items()
-                   if p.endswith(".parquet")}
-        if not parquet:
-            raise Stop(
-                f"{ref.repo_id} has no Parquet files, and no automatic Parquet copy on "
-                f"{PARQUET_BRANCH}. Only Parquet datasets are fetched."
-            )
-    return revision, select(parquet, ref)
+    if parquet:
+        try:
+            return None, select(parquet, ref)
+        except Stop as on_main:
+            # Some script datasets (google/fleurs) keep unrelated Parquet files
+            # on main; the config asked for may be in the automatic copy.
+            first_problem = on_main
+    else:
+        first_problem = None
+    # Published only as a loading script: use the automatic Parquet copy.
+    try:
+        branch = {p: s for p, s in repo_listing(ref.repo_id, "dataset", PARQUET_BRANCH).items()
+                  if p.endswith(".parquet")}
+    except Exception:  # noqa: BLE001 - no such branch: report the first problem
+        branch = {}
+    if not branch:
+        if first_problem:
+            raise first_problem
+        raise Stop(
+            f"{ref.repo_id} has no Parquet files, and no automatic Parquet copy on "
+            f"{PARQUET_BRANCH}. Only Parquet datasets are fetched."
+        )
+    return PARQUET_BRANCH, select(branch, ref)
 
 
 def select(parquet: dict, ref: HfRef) -> dict:

@@ -61,6 +61,49 @@ def run_dir(job: dict) -> Path:
     return RUNS / job["name"]
 
 
+# --- Stages -----------------------------------------------------------------------
+# Each stage is a script run as:  <stage>.py <job file> [--force]
+# A stage that finished writes runs/<job>/stages/<ID>.json, and is not repeated
+# unless --force is given (train.ps1 -Force, or the stage -From starts at).
+
+
+def run_stage(stage_id: str, title: str, work) -> None:
+    """Run work(job) as stage stage_id of the job named on the command line."""
+    import argparse
+    import json
+    import time
+
+    parser = argparse.ArgumentParser(description=title)
+    parser.add_argument("job")
+    parser.add_argument("--force", action="store_true", help="redo the stage even if it finished")
+    a = parser.parse_args()
+
+    def step():
+        job = load_job(a.job)
+        marker = run_dir(job) / "stages" / f"{stage_id}.json"
+        print(f"{stage_id}: {title}  ({job['name']})", flush=True)
+        if marker.is_file() and not a.force:
+            print(f"  already done ({marker}); pass --force to redo it")
+            return
+        started = time.time()
+        result = work(job) or {}
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(json.dumps({"stage": stage_id, "seconds": round(time.time() - started),
+                                      **result}, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    main(step)
+
+
+def stage_result(job: dict, stage_id: str) -> dict:
+    """What an earlier stage recorded when it finished."""
+    import json
+
+    marker = run_dir(job) / "stages" / f"{stage_id}.json"
+    if not marker.is_file():
+        raise Stop(f"stage {stage_id} hasn't finished for {job['name']}; run it first")
+    return json.loads(marker.read_text(encoding="utf-8"))
+
+
 # --- hf: references -------------------------------------------------------------
 # A job may name a Hugging Face model or dataset instead of a folder:
 #   hf:openai/whisper-large-v3-turbo

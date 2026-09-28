@@ -165,6 +165,25 @@ def transcribe_like_cnverc(encoder, decoder, tokens, wav, language: str) -> str:
 _ENGINE_SHOWN = False
 
 
+def transcribe_many_like_cnverc(encoder, decoder, tokens, wavs, language: str) -> list:
+    """transcribe_like_cnverc for many wavs, loading the model once (W8 of the
+    training app scores a few hundred clips this way)."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
+        f.write("\n".join(str(w) for w in wavs))
+        listing = f.name
+    try:
+        result = _engine(
+            "--encoder", encoder, "--decoder", decoder, "--tokens", tokens,
+            "--wav-list", listing, "--language", language,
+        )
+    finally:
+        Path(listing).unlink(missing_ok=True)
+    print(f"  (engine: {engine_description(result)})")
+    return result["texts"]
+
+
 def engine_selftest() -> dict:
     """Load volis's engine without a model and report which runtime it got."""
     return _engine("--selftest")

@@ -13,6 +13,8 @@ checks which onnxruntime.dll it actually got before trusting a transcript.
 
     python engine_worker.py --selftest --expect-ort 1.28.2
     python engine_worker.py --encoder E --decoder D --tokens T --wav W --language es --expect-ort 1.28.2
+    python engine_worker.py ... --wav-list clips.txt ...   (one wav path per line; the
+        model loads once and "texts" holds one transcript per line)
 """
 
 import argparse
@@ -134,11 +136,10 @@ def check_runtime(expect: str) -> dict:
     return info
 
 
-def transcribe(a) -> str:
+def recognizer_for(a):
     import sherpa_onnx
-    import soundfile as sf
 
-    recognizer = sherpa_onnx.OfflineRecognizer.from_whisper(
+    return sherpa_onnx.OfflineRecognizer.from_whisper(
         encoder=a.encoder,
         decoder=a.decoder,
         tokens=a.tokens,
@@ -148,18 +149,27 @@ def transcribe(a) -> str:
         num_threads=6,
         provider="cpu",
     )
-    audio, sample_rate = sf.read(a.wav, dtype="float32")
+
+
+def transcribe_with(recognizer, wav) -> str:
+    import soundfile as sf
+
+    audio, sample_rate = sf.read(wav, dtype="float32")
     stream = recognizer.create_stream()
     stream.accept_waveform(sample_rate, audio)
     recognizer.decode_stream(stream)
     return stream.result.text.strip()
 
 
+def transcribe(a) -> str:
+    return transcribe_with(recognizer_for(a), a.wav)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--expect-ort", required=True)
     parser.add_argument("--selftest", action="store_true")
-    for name in ("--encoder", "--decoder", "--tokens", "--wav", "--language"):
+    for name in ("--encoder", "--decoder", "--tokens", "--wav", "--wav-list", "--language"):
         parser.add_argument(name)
     a = parser.parse_args()
     try:
@@ -167,7 +177,12 @@ def main() -> None:
         if "onnxruntime" in sys.modules:
             raise Refuse("onnxruntime was imported before sherpa-onnx in the engine process")
         result = check_runtime(a.expect_ort)
-        if not a.selftest:
+        if a.wav_list:
+            recognizer = recognizer_for(a)
+            wavs = Path(a.wav_list).read_text(encoding="utf-8").splitlines()
+            result["texts"] = [transcribe_with(recognizer, w) for w in wavs if w.strip()]
+            result["onnxruntime_after"] = check_runtime(a.expect_ort)["onnxruntime"]
+        elif not a.selftest:
             result["text"] = transcribe(a)
             result["onnxruntime_after"] = check_runtime(a.expect_ort)["onnxruntime"]
         print(json.dumps({"ok": True, **result}))

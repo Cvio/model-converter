@@ -373,6 +373,13 @@ The data opens, the mapped columns exist, and sample rows print.
 `min_seconds`–`max_seconds` and count them. If there's no test data, hold back 5% of *speakers*
 (never clips) as test. Also hold back 5% of training speakers for validation. Print hours, clips
 and speakers per split, and the **speaker overlap between train and test, which must be 0**.
+Speaker IDs are labelled with their dataset first: CIEMPIESS LIGHT and TEST both number speakers
+F_01 to M_10, and they are different people.
+
+**Mix in ordinary speech** when the job has `data.mix` (source, columns, share): clips from a
+general dataset are added to training, after punctuation is restored, until they make up `share`
+of its hours. It protects general Spanish: the rehearsal without it got 1.67 WER points worse
+on FLEURS. It must not be the regression data.
 
 **Restore punctuation** when the job says `restore_punctuation: true` (the default when the
 transcripts have no punctuation at all). CIEMPIESS transcripts are all lowercase with no
@@ -382,7 +389,9 @@ statement and was translated as "they want…". So the teacher adds capital lett
 punctuation, including ¿ and ?, to each transcript once, and saves the result.
 
 The teacher must not change any word. After it runs, compare each line with the original
-after removing case and punctuation from both. **Any line whose words changed is thrown away and
+after removing case and punctuation from both. (Built in item 3: the comparison also ignores
+written accents, but not ñ, because adding ¿? brings qué and cómo with it, and CIEMPIESS omits
+those accents. Counting them as changed words threw away 15% of lines.) **Any line whose words changed is thrown away and
 counted.** If more than 5% are thrown away, stop: the teacher is rewriting, not punctuating.
 Colloquial spellings (*pus*, *namás*) must survive unchanged. Print ten before-and-after
 examples.
@@ -407,7 +416,7 @@ not the last one.
 
 **W5 — evaluate.** Base against tuned, on test and regression, plus ten example clips side by
 side. **Stop** if the test error didn't go down, or if the regression error rose by more than
-about one point.
+one point (a job may set `regression_limit`; only the rehearsal does, and says why).
 
 **W6 — merge.** See "Merging". The output is `runs/<job>/merged/`.
 
