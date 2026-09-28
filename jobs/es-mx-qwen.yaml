@@ -1,0 +1,15 @@
+# Qwen3 1.7B (the translator volis runs) tuned on English <-> Mexican Spanish
+# pairs from jobs/es-mx-pairs.yaml, which must have passed its fluent-speaker
+# check (P4). Run on the machine that has volis (Q8 installs it there):
+#     .\fetch.ps1 jobs\es-mx-qwen.yaml
+#     .\train.ps1 jobs\es-mx-qwen.yaml
+kind: qwen
+name: es-mx-qwen
+base_model: hf:Qwen/Qwen3-1.7B           # the same model volis runs, before compression
+from_pairs_job: es-mx-pairs              # its out/train, test and general pairs
+general_share: 0.2                       # FLORES+ pairs make a fifth of training
+lora: { rank: 16, alpha: 32, dropout: 0.05 }
+training: { learning_rate: 2.0e-4, epochs: 2, batch_size: 16, gradient_accumulation: 1 }
+output:
+  file_name: qwen3-1.7b-es-mx-q4_k_m.gguf
+  quantization: Q4_K_M                   # the level volis's current translator uses

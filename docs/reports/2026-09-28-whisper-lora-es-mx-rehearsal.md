@@ -270,3 +270,75 @@ take any speech dataset, so adding one is a job-file change.
    are acronyms ("ve i hache" is VIH/HIV), "e" alone is a hesitation, and *entos*/*pus*/*-tá* are
    colloquial spellings. This is a prompt change in `teacher/teacher.py`.
 3. **A person reviews the 50 pairs.** Only after 90% does the translator train on them.
+
+---
+
+## Part 3: training the translator (the Qwen job rehearsal)
+
+*Job: `jobs/es-mx-qwen-rehearsal.yaml`. Same laptop. Results from `runs/es-mx-qwen-rehearsal/`.*
+
+### In short
+
+We trained volis's translator (Qwen3 1.7B) on the pairs rehearsal's 600 English ↔ Mexican
+Spanish pairs, merged the training into the model, converted it to the file volis runs, and
+tested it against volis's current translator, through volis itself. Every stage worked. The
+result is mixed, as expected from pairs that failed their review: **Mexican → English got clearly
+better (+3.5 chrF in volis); English → Mexican didn't (−0.3)**, so the final stage put volis's
+original translator back automatically.
+
+These pairs were used only to prove the stages (the job says so: `allow_unreviewed_pairs`); a
+translator trained on them isn't meant to be kept.
+
+### What was run
+
+| | |
+|---|---|
+| Base | Qwen3-1.7B (the model volis runs, before compression) |
+| Training text | exactly what volis sends its translator, taken from `volis --print-prompt`; 750 examples (600 dialect pairs + 150 FLORES+ general pairs, a fifth) |
+| LoRA | rank 16, alpha 32, on every linear layer; only the answer and its closing `<|im_end|>` learned |
+| Training | 2 epochs, 86 steps, batch 2 × accumulation 8 (the batch halved itself twice to fit 8 GB), 15 minutes |
+| Validation loss | 2.96 → 0.97 (epoch 1) → 0.95 (epoch 2, kept) |
+| Conversion | llama.cpp at `e79e4bf660e1`, the commit volis's llama-cpp-2 0.1.156 builds; Q4_K_M, 1,107 MB (same as volis's current file) |
+
+### Results (chrF: higher is better)
+
+| | Mexican → English | English → Mexican |
+|---|---|---|
+| Base, full precision (Q3) | 62.06 | 58.89 |
+| Tuned, full precision (Q5) | 65.00 (+2.94) | 60.08 (+1.19) |
+| Merged, full precision (Q6) | 66.26 | 60.48 |
+| **volis's current translator, in volis (Q8)** | 61.42 | 58.99 |
+| **Tuned, compressed, in volis (Q8)** | **64.88 (+3.46)** | 58.72 (−0.27) |
+
+Refused by volis's guards: current 1 of 199, tuned 4.
+
+### What we learned
+
+1. **The Mexican → English gain survives compression; the English → Mexican one doesn't.**
+   Compressing to Q4_K_M cost about 1.4 chrF going into Mexican Spanish (60.08 → 58.72) and
+   almost nothing going into English. With a gain of only +1.2 to begin with, English → Mexican
+   ended up level. Writing a dialect is the harder direction; it needs better pairs (lesson 4),
+   and possibly a lighter compression if the file size allows.
+2. **A merge check must suit the model's precision.** The Whisper job checks the merge by
+   comparing scores, and they matched to 0.00 in float32. The translator runs in bfloat16, where
+   merging rounds differently from "base + LoRA", and greedy decoding amplifies the difference:
+   the merged model scored 0.40 away (higher), with nothing wrong. The check now compares
+   next-token predictions on the same input: 99.26% agreement, where a broken merge would be far
+   lower.
+3. **Always test the converted file with the program that will run it.** The tuned model looked
+   better in both directions at full precision (Q5). Only testing the compressed file through
+   volis (Q8) showed English → Mexican didn't hold up. That test, and putting the old translator
+   back when the new one isn't better, is what keeps a rehearsal model out of daily use.
+4. **Bad pairs show up here too.** One test pair's "English" was still Spanish: the teacher had
+   handed the sentence back. The pairs job now drops such lines (4 of 400 in the rehearsal).
+5. **The conversion's version warning was harmless, but worth checking.** llama.cpp at volis's
+   commit expects an older transformers, and warns "Unknown RoPE type". Every model setting in the
+   new file was compared with volis's working translator: identical (the two tokenizer
+   differences don't apply, because volis never adds a start token).
+
+### What this means for the real run
+
+The pipeline works end to end. What decides the result is the pairs: from punctuated
+transcripts, translated by the 32B teacher with `teacher_notes`, reviewed by a person to 90%, and
+ideally from more conversational Mexican speech. With those, English → Mexican is the direction
+to watch.

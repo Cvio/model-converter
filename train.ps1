@@ -43,6 +43,16 @@ $stagesByKind = @{
         @("P3", "training\steps\pairs\p3_translate.py", "training"),
         @("P4", "training\steps\pairs\p4_review.py", "training")
     )
+    "qwen" = @(
+        @("Q1", "training\steps\qwen\q1_check.py", "training"),
+        @("Q2", "training\steps\qwen\q2_prepare.py", "training"),
+        @("Q3", "training\steps\qwen\q3_baseline.py", "training"),
+        @("Q4", "training\steps\qwen\q4_train.py", "training"),
+        @("Q5", "training\steps\qwen\q5_evaluate.py", "training"),
+        @("Q6", "training\steps\qwen\q6_merge.py", "training"),
+        @("Q7", "qwen-to-gguf\steps\q7_convert.py", "training"),
+        @("Q8", "training\steps\qwen\q8_install.py", "training")
+    )
 }
 
 if (-not (Test-Path $Job)) {

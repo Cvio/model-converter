@@ -1,0 +1,20 @@
+# A quick run of the translator job on the pairs rehearsal, to prove every
+# stage (training, merging, GGUF conversion, installing into volis) end to end.
+#     .\fetch.ps1 jobs\es-mx-qwen-rehearsal.yaml
+#     .\train.ps1 jobs\es-mx-qwen-rehearsal.yaml
+kind: qwen
+name: es-mx-qwen-rehearsal
+base_model: hf:Qwen/Qwen3-1.7B
+from_pairs_job: es-mx-pairs-rehearsal
+general_share: 0.2
+lora: { rank: 16, alpha: 32, dropout: 0.05 }
+training: { learning_rate: 2.0e-4, epochs: 2, batch_size: 8, gradient_accumulation: 2 }
+output:
+  file_name: qwen3-1.7b-es-mx-rehearsal-q4_k_m.gguf
+  quantization: Q4_K_M
+# Rehearsal only: the pairs rehearsal failed its review (24 of 50, with the
+# laptop's 8B teacher on unpunctuated text), so its pairs are not good enough
+# to keep a translator trained on them. They're used here only to prove the
+# stages run; Q8 keeps the result only if it beats volis's current translator,
+# and puts the old one back otherwise.
+allow_unreviewed_pairs: true

@@ -27,7 +27,7 @@ sys.path.insert(0, str(REPO / "teacher"))
 from common import Stop, heading, run_dir, run_stage, stage_result  # noqa: E402
 from pairs_common import out_dir, pair, read_jsonl, setting, write_jsonl  # noqa: E402
 from teacher import (CLEAN_SYSTEM, Teacher, clean_disfluencies, is_removal_only,  # noqa: E402
-                     translate, translate_system)
+                     translate, translate_system, words)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from p2_teacher import flores  # noqa: E402
@@ -80,11 +80,22 @@ def work(job: dict) -> dict:
     else:
         print("  every line already translated and tidied (cached)")
 
+    def echoed(text: str, english: str) -> bool:
+        """The teacher handed the sentence back instead of translating it:
+        most of its 'English' words are the source's own words."""
+        src, out = set(words(text)), words(english)
+        return bool(out) and sum(w in src for w in out) / len(out) > 0.6
+
+    echoes = []
+
     def pairs_for(texts: list) -> tuple:
         rows, kept_original = [], 0
         for text in texts:
             english = cache.get(to_english, text).strip()
             if not english:
+                continue
+            if echoed(text, english):
+                echoes.append(text)
                 continue
             tidied = cache.get(tidy, text).strip()
             if not is_removal_only(text, tidied):
@@ -108,6 +119,7 @@ def work(job: dict) -> dict:
     print(f"  train:   {len(train_pairs):,} ({len(train_pairs) // 2:,} each way)")
     print(f"  test:    {len(test_pairs):,}")
     print(f"  general: {len(general):,} (FLORES+ dev, {language} <-> {other})")
+    print(f"  dropped: {len(echoes):,} lines the teacher handed back untranslated")
     tidy_failed = train_kept + test_kept
     print(f"  tidying: the teacher did more than remove words in {tidy_failed:,} of {len(lines):,} "
           "lines; those keep their original wording")
@@ -117,7 +129,7 @@ def work(job: dict) -> dict:
     if not train_pairs:
         raise Stop("no training pairs were made")
     return {"train": len(train_pairs), "test": len(test_pairs), "general": len(general),
-            "tidy_kept_original": tidy_failed}
+            "tidy_kept_original": tidy_failed, "dropped_untranslated": len(echoes)}
 
 
 if __name__ == "__main__":

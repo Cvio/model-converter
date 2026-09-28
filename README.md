@@ -356,6 +356,56 @@ on, and `general.jsonl` (from FLORES+) so the translator doesn't get worse at or
 There's also a rehearsal of this step, `jobs\es-mx-pairs-rehearsal.yaml`, which uses the
 Whisper rehearsal's sentences and finishes in minutes.
 
+## Train the translator for the dialect
+
+This teaches volis's translator (Qwen) the dialect, using the translation pairs from the step
+above, then puts it into volis only if it's measurably better than the one volis already has.
+
+**A few more words:**
+- **GGUF:** the file format volis's translator runs from (the `.gguf` file in volis's
+  `models\mt\` folder). Training uses a different format, so the result is converted at the end.
+- **Compression (Q4_K_M):** the translator is stored with its numbers rounded to about 4 bits,
+  so it's small (about 1.1 GB) and fast on an ordinary processor. It costs a little accuracy.
+
+**Before you start:** the pairs job must have passed its person check (stage P4), and this
+computer needs volis (the translator is installed and tested there), with `volis_path` set in
+`machine.yaml`. The volis there must be recent enough to have `--translate` (M7.8 or later).
+
+1. **Download the starting translator:**
+
+   ```powershell
+   .\fetch.ps1 jobs\es-mx-qwen.yaml
+   ```
+
+   This downloads Qwen3 1.7B, about 4 GB: the same translator volis runs, before compression.
+   **Expect** it to end with `OK. Everything es-mx-qwen.yaml names is in ...`.
+
+2. **Train it:**
+
+   ```powershell
+   .\train.ps1 jobs\es-mx-qwen.yaml
+   ```
+
+   | Stage | What happens, simply |
+   |---|---|
+   | Q1 | Checks the translator, the pairs, and that the pairs passed the person check |
+   | Q2 | Turns each pair into exactly the text volis sends its translator (asked from volis itself, so training matches what volis does) |
+   | Q3 | Tests the original translator, so there's a score to beat |
+   | Q4 | Trains. On a laptop with an 8 GB card this takes about 15 minutes for the rehearsal; the real job, longer |
+   | Q5 | Tests the trained translator, and stops if either direction got worse |
+   | Q6 | Combines the add-on with the translator, and checks they still behave the same |
+   | Q7 | Converts it to the GGUF format and compresses it, with the same llama.cpp version volis uses to read it |
+   | Q8 | Tests volis's current translator and the new one, both through volis. The new one stays only if it's better in both directions; otherwise the old one is put back automatically |
+
+   **Expect** `Every stage passed`, and the new translator in volis's `models\mt\` folder. The old
+   one is kept in `models\mt-parked\`, never deleted; Q8 prints how to swap back.
+
+3. **Try it.** Talk through volis in both directions and check the translations sound like the
+   dialect. A score can rise while translations get stiffer.
+
+A rehearsal of this step, `jobs\es-mx-qwen-rehearsal.yaml`, uses the pairs rehearsal and shows
+every stage working; its translator isn't meant to be kept (see the report in `docs\reports\`).
+
 ---
 
 ## Details

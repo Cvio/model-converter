@@ -504,7 +504,11 @@ the model never learns to stop, and volis's length guard throws its output away.
 **Q5 — evaluate.** chrF per direction, base against tuned. Print 20 examples side by side.
 Stop if either direction got worse.
 
-**Q6 — merge.** See "Merging".
+**Q6 — merge.** See "Merging". (Built in item 6: the check compares next-token predictions, not chrF. The
+translator runs in bfloat16, where merging rounds differently from base + LoRA, and greedy
+decoding amplifies those tiny differences; the rehearsal's merged model scored 0.40 chrF away
+from base + LoRA, higher, with nothing wrong. Given the same prompt and reference answer, the
+two must pick the same next token at least 98% of the time.)
 
 **Q7 — convert to GGUF.** See "Qwen → GGUF".
 
