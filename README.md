@@ -573,5 +573,6 @@ model-converter/
   teacher/              teacher.py (runs llama-server), get_server.py, check.py
     llama.cpp/          the pinned prebuilt llama-server (not committed)
   train-and-convert-app.md   the plan the training parts are built from
+  docs/reports/         findings from training runs (start with the Mexican Spanish rehearsal)
   whisper-to-onnx-converter.md   the original instructions this was built from
 ```
