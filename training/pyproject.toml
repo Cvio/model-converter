@@ -1,0 +1,37 @@
+[project]
+name = "model-converter-training"
+version = "0.1.0"
+description = "LoRA training, merging and scoring for model-converter (CUDA PyTorch)."
+# The same Python as the converter's environment, for the same reason: every
+# wheel here is published for 3.12.
+requires-python = "==3.12.*"
+dependencies = [
+    "torch",
+    "transformers",
+    "peft",
+    "accelerate",
+    "datasets",
+    "soundfile",
+    "librosa",
+    "jiwer",
+    "sacrebleu",
+    "pyarrow",
+    "pyyaml",
+    "huggingface_hub",
+    "requests",
+]
+
+[tool.uv]
+package = false
+required-version = ">=0.11.26,<0.12"
+
+# Training needs CUDA PyTorch built for CUDA 12.8 or newer: the RTX 5090 is a
+# Blackwell card, and older builds install without complaint and then fail on
+# it. The converter's environment stays CPU-only (see ../pyproject.toml).
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }

@@ -356,8 +356,10 @@ llama_server: D:/tools/llama.cpp/llama-server.exe
 any recent `llama-server` built with CUDA. llama.cpp's GitHub releases include prebuilt Windows
 CUDA builds: use one built for CUDA 12.8 or newer, which the 5090 (Blackwell) needs. That usually
 avoids installing NVIDIA's CUDA toolkit at all. Build it from source only if no suitable
-prebuilt one exists. Check at startup that it really runs on the GPU (its log names the CUDA
-device), and stop if it fell back to the CPU.
+prebuilt one exists. Check at startup that it really runs on the GPU, and stop if it fell back
+to the CPU. (Built in item 2: `teacher/get_server.py` pins release b11223, CUDA 13.4. The GPU
+check asks `nvidia-smi` how much GPU memory the model took, because recent llama-server logs
+don't name the device at their default level.)
 
 ---
 

@@ -18,3 +18,10 @@ runs-*.log
 *.wav
 
 __pycache__/
+
+# Train-and-convert: inputs (base models, datasets, teacher models), the
+# training environment, and llama.cpp downloads and clones. All reproducible.
+/inputs/
+/training/.venv/
+/teacher/llama.cpp/
+/qwen-to-gguf/llama.cpp/

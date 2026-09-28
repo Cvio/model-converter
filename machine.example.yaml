@@ -5,3 +5,12 @@
 # models\asr\ and runs "volis --report" there. (cnverc_path, the name from
 # before volis was renamed, still works.)
 volis_path: D:/AI_Data/projects/volis/target/release
+
+# The teacher: a large local model that prepares training data (restores
+# punctuation, translates transcripts). A list, even with one entry; with
+# several, the pairs job scores each and uses the best. Paths are relative to
+# this folder or absolute.
+teacher_gguf:
+  - inputs/teacher/Qwen3-8B-Q4_K_M.gguf
+# llama-server built with CUDA. teacher/get_server.py downloads the pinned one here.
+llama_server: teacher/llama.cpp/llama-server.exe

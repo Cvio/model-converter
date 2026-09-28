@@ -250,6 +250,47 @@ whole units: swapping two weights in one layer on purpose gave a difference of 2
   from Whisper's standard vocabulary, so step 2 refuses a model whose vocabulary size differs from
   its base model's.
 
+## Training (being built)
+
+model-converter is growing from convert-only into a train-and-convert app
+(`train-and-convert-app.md` has the plan). What exists so far:
+
+- **A second environment for training,** in `training/`, with CUDA PyTorch (built for CUDA 12.8,
+  which the RTX 5090 needs). The converter's environment stays CPU-only. `setup.ps1` installs
+  both, then runs `training/steps/gpu_check.py`: versions, the GPU, and a ten-step LoRA on
+  `whisper-small`. On a PC without an NVIDIA GPU it says training isn't possible there; the
+  converter still works.
+- **`fetch.ps1 <job file>`** downloads every `hf:` model and dataset a job names into `inputs/`:
+  only weights, configs and tokenizer files for models (safetensors when a repo has them), and
+  Parquet only for datasets. A dataset published only as a loading script comes from Hugging
+  Face's automatic Parquet copy. A gated dataset stops and says what to accept, then
+  `uv run hf auth login`.
+- **The teacher**: a larger model run through llama.cpp's `llama-server`, used to prepare
+  training data (restoring punctuation now; translating later). It never ships.
+  `uv run --project training python teacher/get_server.py` downloads a pinned prebuilt CUDA
+  build into `teacher/llama.cpp/`, checking each archive's SHA-256. `machine.yaml` names the
+  teacher models (`teacher_gguf:`, a list) and the server (`llama_server:`).
+  `uv run --project training python teacher/check.py` punctuates ten CIEMPIESS lines and checks
+  no word changed.
+
+### Things that went wrong while building it
+
+- **Windows PowerShell 5.1 turns a program's stderr into an error when output is redirected.**
+  With `$ErrorActionPreference = "Stop"`, Hugging Face's "unauthenticated requests" warning
+  then stops a working download (`convert.ps1 ... *> log` fails in step 2 for this reason).
+  `fetch.ps1` checks exit codes instead. In a console, without redirection, it doesn't happen.
+- **Many model repos publish the same weights twice** (`model.safetensors` and
+  `pytorch_model.bin`). `fetch.ps1` takes safetensors when there are any.
+- **llama-server's log no longer names the GPU at its default level**, so reading the log to
+  prove the model is on the GPU fails. The teacher asks the NVIDIA driver instead. On Windows
+  the driver doesn't report per-process memory, so it compares total GPU memory in use before
+  and after the model loads.
+- **A teacher told only "change no word" still tidies speech.** Qwen3-8B dropped a repeated
+  "que que", a false start ("contra contratada") and corrected "dejé". The prompt now names
+  those cases; the word-for-word check catches any it still makes.
+- **CUDA 12.4 builds of llama.cpp don't run on the RTX 5090** (Blackwell). The pinned build is
+  CUDA 13.4, which runs on it and on the laptop's RTX 4070.
+
 ## Security software (McAfee, Trellix and the like)
 
 On-access scanners sometimes quarantine or lock DLLs while uv writes them: torch's, onnxruntime's,
@@ -303,5 +344,12 @@ model-converter/
   vendor/               sherpa-onnx at v1.13.8, cloned by step 1 (not committed)
   .uv/  .venv/          uv's cache and Python, and the environment (not committed)
   runs/<run_name>/      everything a run produces (not committed)
+  fetch.ps1             downloads a job's hf: models and datasets into inputs/
+  inputs/               base models, datasets and teacher models (not committed)
+  training/             the training environment (its own uv project, CUDA PyTorch)
+    steps/              common.py, fetch.py, gpu_check.py
+  teacher/              teacher.py (runs llama-server), get_server.py, check.py
+    llama.cpp/          the pinned prebuilt llama-server (not committed)
+  train-and-convert-app.md   the plan the training parts are built from
   whisper-to-onnx-converter.md   the original instructions this was built from
 ```

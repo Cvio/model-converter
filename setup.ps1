@@ -65,6 +65,24 @@ try {
     Write-Host "`n== Checking the environment (0_doctor.py)"
     & uv run --locked --no-sync python whisper-to-onnx\steps\0_doctor.py
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    # The training environment: its own project, with CUDA PyTorch. It shares
+    # nothing with the converter's environment above but files in runs\.
+    Write-Host "`n== Installing the training environment (training\, CUDA PyTorch; about 3 GB the first time)"
+    $syncArgs = @("sync", "--locked", "--project", "training")
+    if ($Reinstall) { $syncArgs += "--reinstall" }
+    & uv @syncArgs
+    if ($LASTEXITCODE -ne 0) {
+        Fail ("uv sync failed for training\. If it says the lock file needs updating, run 'uv lock' " +
+              "in training\ on the machine that changed training\pyproject.toml, and commit training\uv.lock.")
+    }
+
+    Write-Host "`n== Checking this machine can train (gpu_check.py)"
+    & uv run --locked --no-sync --project training python training\steps\gpu_check.py
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ("`nThe converter works on this machine; training doesn't yet (see STOP above). " +
+                    "Training belongs on a machine with an NVIDIA GPU; conversion runs anywhere.") -ForegroundColor Yellow
+    }
 }
 finally {
     Pop-Location
