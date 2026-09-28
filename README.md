@@ -1,34 +1,80 @@
 # model-converter
 
-Turns models from Hugging Face into files [volis](https://github.com/Cvio/cnverc) (formerly cnverc) can run.
+**volis** is the offline speech translator this project serves. It listens to someone speak,
+writes down what they said, translates it and says it aloud, all without the internet. To hear
+speech it uses a **speech recognizer**, a model called Whisper.
 
-volis runs its speech models through sherpa-onnx, which only loads ONNX files in its own layout.
-Fine-tuned models on Hugging Face come as `model.safetensors` or `pytorch_model.bin`, in Hugging
-Face's layout. This project converts one into the other, checks the result at every step, and
-produces a model folder you copy into volis's `models/asr/`.
+This project gets better speech recognizers into volis. It can do two things:
 
-**What it converts today:** Whisper speech recognizers, whether full fine-tunes from Hugging Face
-or merged models from the LoRA training app. Translation models (Qwen → GGUF) are next and will
-sit beside it in their own folder.
+- **Convert a model:** take a speech recognizer someone published on the internet and turn it
+  into the files volis can run. Useful when someone has already made a model for your language
+  or accent.
+- **Train a model:** teach a speech recognizer an accent (for example Mexican Spanish) from
+  recordings, then convert it and put it into volis.
 
-This is a separate project on purpose. It's Python, it downloads from the internet, and volis
-itself must never do either. The two meet only at the model folder.
+It is a separate project from volis on purpose: it downloads from the internet and volis must
+never do that. The two only meet when a finished model folder is copied into volis.
 
-## Quick start
+## Start here
 
-This is a command-line tool, not a window you open. You run it from PowerShell, one step at a
-time, and each step prints what it did. At the end, the converted model appears in volis's
-recognizer list.
+| You want to… | Go to |
+|---|---|
+| Get this computer ready (always do this first) | [Set up this computer](#set-up-this-computer-once) |
+| Put an existing model from the internet into volis | [Convert a model](#convert-a-model) |
+| Teach a model an accent and put it into volis | [Train your own model](#train-your-own-model) |
+| Try the whole training process quickly | [The rehearsal](#the-rehearsal-a-quick-test-run) |
+| Understand a word used here | [Words used here](#words-used-here) |
+| Fix something, or learn how it works inside | [Details](#details) |
 
-**Once per computer**
+## Words used here
 
-1. Install Git and uv, then close PowerShell and open a new one:
+- **Model:** a file that has learned to do one job, such as writing down what someone says.
+- **Speech recognizer:** a model that turns speech into text. volis uses Whisper.
+- **Hugging Face:** a public website where people share models and collections of recordings.
+  Most downloads here come from it.
+- **Converting:** models are published in a format made for training them (files called
+  `model.safetensors`). volis runs a different format (ONNX files, arranged the way its speech
+  library, sherpa-onnx, expects). Converting turns one into the other without changing what the
+  model does, and this project checks that at every step.
+- **Training** (also called fine-tuning): showing a model thousands of recordings with their
+  correct transcripts, so it gets better at that kind of speech. It adjusts the model a little;
+  it doesn't start from nothing.
+- **LoRA:** a small add-on file that holds what training taught the model. The original model
+  stays untouched until the end, when the two are combined (**merged**) into one model.
+- **Dataset:** a collection of recordings with their transcripts.
+- **Teacher:** a much bigger language model that tidies transcripts before training (adds capital
+  letters and punctuation). It is only a helper and is never put into volis.
+- **GPU:** the graphics card. Training runs on it because it is many times faster than the main
+  processor. It must be an NVIDIA card.
+- **Config / job file:** a short text file that says what to do. A *config* (in
+  `whisper-to-onnx\configs\`) names a model to convert; a *job file* (in `jobs\`) describes a
+  training run. You pick one; you don't have to write one.
+- **PowerShell:** the Windows program where you type commands. Open it from the Start menu (type
+  `PowerShell`). Every command below is typed or pasted there, then Enter.
+- **Git:** downloads this project from GitHub and keeps it up to date.
+- **uv:** installs Python and the libraries this project needs, inside this project's folder only.
+- **`STOP:`:** how every step says it found a problem. The line after it says what's wrong and
+  what to do, and the command to carry on once it's fixed.
+
+## Set up this computer (once)
+
+Do this once on each computer that will convert or train. It takes 10 to 20 minutes, mostly
+downloading.
+
+1. **Install Git and uv.** In PowerShell, run:
 
    ```powershell
    winget install Git.Git astral-sh.uv
    ```
 
-2. Get the code and set it up. This takes a few minutes the first time:
+   These are the two programs everything else relies on (see [Words used here](#words-used-here)).
+   **Expect** each to say it installed successfully. Then **close PowerShell and open a new one**,
+   so it can find them.
+
+   If you'll train on this computer, also update the **NVIDIA driver** (through the NVIDIA app, or
+   nvidia.com): training can't use the graphics card without a current one.
+
+2. **Download this project and set it up:**
 
    ```powershell
    cd D:\AI_Data\projects
@@ -37,145 +83,108 @@ recognizer list.
    .\setup.ps1
    ```
 
-   It should end with `OK. This machine can run every step.` If it doesn't, see
-   [On another PC](#on-another-pc), step 4.
+   The first line moves to the folder the project will live in; the second downloads it; the
+   last installs everything it needs into its own folder, so nothing else on the computer
+   changes. It installs two toolsets: one for converting, and one for training (about 3 GB,
+   because it includes PyTorch, the library that trains models on the graphics card).
 
-3. Tell it where volis is. Copy `machine.example.yaml` to `machine.yaml`, open it in Notepad,
-   and set `volis_path` to the folder that has `volis.exe` in it.
+   **Expect** two lines near the end:
+   - `OK. This machine can run every step.`: converting works here.
+   - `OK. This machine can train.`: it trained a tiny test model for ten steps on the graphics
+     card. On a computer without an NVIDIA card this part says training isn't possible here
+     instead. That's fine if you only convert.
 
-**Each time you convert a model**
+   If PowerShell refuses to run the script, use `powershell -ExecutionPolicy Bypass -File .\setup.ps1`.
+   If it prints `MISSING` or `ALTERED`, security software got in the way; see
+   [Security software](#security-software-mcafee-trellix-and-the-like).
 
-1. Pick a config from `whisper-to-onnx\configs\`, or copy one and change the model name in it.
-2. Make sure the recording it names under `test:` exists in `test_audio\`.
-3. Open PowerShell in the `model-converter` folder and run:
+3. **Tell it where volis is.** Copy the file `machine.example.yaml` to `machine.yaml` in the same
+   folder, open `machine.yaml` in Notepad, and set `volis_path` to the folder that has
+   `volis.exe` in it, for example:
+
+   ```yaml
+   volis_path: D:/AI_Data/projects/volis/target/release
+   ```
+
+   `machine.yaml` holds the settings that differ between computers. volis's folder is needed
+   because the last step of converting and training puts the new model into volis and checks
+   volis accepts it.
+
+## Convert a model
+
+Use this when a speech recognizer you want already exists on Hugging Face, and you want it in
+volis.
+
+1. **Pick a config.** Look in `whisper-to-onnx\configs\`: each file there names one model and
+   how to convert it. To convert a different model, copy one of them and change the model's name
+   inside (see [Converting a Whisper model](#converting-a-whisper-model) for what each line
+   means).
+
+2. **Have a test recording ready.** The conversion checks the finished model by having it
+   transcribe a few seconds of speech. The config names that recording under `test:` (for
+   example `test_audio\es-16k.wav`). Recordings aren't included with the project, so on a new
+   computer make one: in volis, run `volis --listen --wav` and say a sentence, and it saves your
+   speech in the right format in its `logs\segments\` folder. Copy one of those files into
+   `test_audio\` with the name the config expects.
+
+3. **Convert:**
 
    ```powershell
    .\convert.ps1 whisper-to-onnx\configs\es-small-hitz.yaml
    ```
 
-   Use the config you picked. It runs all seven steps in order and stops at the first one that
-   fails. Steps 2 and 4 take the longest: step 2 downloads the model and step 4 converts it. If
-   PowerShell refuses to run scripts, start it with
-   `powershell -ExecutionPolicy Bypass -File .\convert.ps1 ...` instead.
+   (Use the config you picked.) It runs seven steps in order: download the model, convert it,
+   check the converted model gives exactly the same answers as the original, shrink it to the
+   size volis uses, and install it into volis. Steps 2 (downloading) and 4 (converting) take the
+   longest, a few minutes each. **Expect** it to end with `All seven steps passed`.
 
-4. Open volis, tick **Compare recognizers**, and speak. The new model is listed beside the
-   ones you already have.
+   **If it stops,** it prints `STOP:`, what went wrong, and a command to carry on, such as
+   `.\convert.ps1 whisper-to-onnx\configs\es-small-hitz.yaml -From 4`. Fix what it says and run
+   that; steps that already passed aren't repeated. To start again from scratch, add `-Force`.
 
-**If a step stops**
+4. **Listen to it.** Open volis, tick **Compare recognizers**, press **Start** and speak. Every
+   recognizer writes down what you said, side by side, so you can see whether the new one hears
+   you better. Scores on test recordings don't tell you this; your own voice does.
 
-It prints `STOP:` and the reason, and then the command that picks up where it left off, for
-example:
+## Train your own model
 
-```powershell
-.\convert.ps1 whisper-to-onnx\configs\es-small-hitz.yaml -From 4
-```
-
-Fix what it says, then run that command. The steps that already passed aren't repeated. To
-redo a whole conversion from scratch, add `-Force`.
-
-**Running the steps one at a time**
-
-`convert.ps1` just runs these commands in order. You can run them yourself instead, for
-example to look at a step's output before going on. Add `--force` to rerun a step that has
-already made its output folder.
-
-```powershell
-$c = "whisper-to-onnx\configs\es-small-hitz.yaml"
-uv run python whisper-to-onnx\steps\1_check_setup.py --config $c
-uv run python whisper-to-onnx\steps\2_download.py --config $c
-uv run python whisper-to-onnx\steps\3_to_openai_format.py --config $c
-uv run python whisper-to-onnx\steps\4_export_onnx.py --config $c
-uv run python whisper-to-onnx\steps\5_check_int8.py --config $c
-uv run python whisper-to-onnx\steps\6_assemble.py --config $c
-uv run python whisper-to-onnx\steps\7_verify.py --config $c
-```
-
-Everything after this section is detail: what the steps do, and why.
-
-## Training your own model (quick start)
-
-This is how to teach a speech recognizer an accent, for example Mexican Spanish, and put the
-result into volis. You don't need to understand machine learning to do it: two commands do the
-work, and every step checks itself and stops with a plain message if something is wrong.
-
-### A few words first
-
-- **Model:** a file that has learned to do one job, here writing down what someone says.
-  Whisper is the one volis uses to hear speech.
-- **Training** (also called fine-tuning): showing a model thousands of recordings with their
-  correct transcripts, so it gets better at that kind of speech. It changes the model a little;
-  it doesn't start from nothing.
-- **LoRA:** a small add-on file that holds what training taught the model. The original model
-  is left untouched until the end, when the two are combined (**merged**).
-- **GPU:** the graphics card. Training runs on it, because it is many times faster than the
-  main processor. It must be an NVIDIA card.
-- **Dataset:** a collection of recordings with their transcripts. The ones used here are
-  downloaded from Hugging Face, a public website for models and datasets.
-- **Teacher:** a much bigger language model that tidies the transcripts before training (adds
-  capital letters and punctuation). It is only a helper and is never put into volis.
-- **Job file:** a short text file in `jobs\` that says what to train: which model, which
-  recordings, which language. You pick one; you don't have to write one.
+Use this to teach Whisper an accent from recordings, then put the result into volis. Two
+commands do the work, and every stage checks itself and stops with a plain message if something
+is wrong.
 
 ### Which computer to use
 
 Training needs an NVIDIA graphics card with plenty of memory. The desktop with the **RTX 5090**
-is the one for real runs. A laptop with an 8 GB card, like the RTX 4070, can only do the small
-**rehearsal** job: a quick run of every step on about an hour of recordings, to prove everything
-works before spending hours on the real thing.
+is the one for real runs (several hours). A laptop with an 8 GB card, like the RTX 4070, can
+only do the **rehearsal**: a quick run of every stage on about an hour of recordings, to prove
+everything works before spending hours on the real thing.
 
-### Once per computer
+### Extra setup for training (once)
 
-1. **Install the programs it needs.** Open PowerShell (Start menu, type `PowerShell`) and run:
+After [Set up this computer](#set-up-this-computer-once):
 
-   ```powershell
-   winget install Git.Git astral-sh.uv
-   ```
-
-   Git downloads this project; uv installs Python and everything this project uses. Also make sure
-   the **NVIDIA driver** is up to date (the NVIDIA app, or nvidia.com): training can't reach the
-   graphics card without it. Close PowerShell and open a new one afterwards, so it finds what you
-   installed.
-
-2. **Get this project and set it up:**
-
-   ```powershell
-   cd D:\AI_Data\projects
-   git clone https://github.com/Cvio/model-converter.git
-   cd model-converter
-   .\setup.ps1
-   ```
-
-   This installs two separate toolsets: one for converting models, and one for training (about
-   3 GB, because it includes the graphics-card version of PyTorch, the library that does the
-   training). It ends by training a tiny test model for ten steps, to prove the graphics card
-   works. **Expect** it to finish with `OK. This machine can train.` It takes 10 to 20 minutes the
-   first time. If PowerShell refuses to run it, use
-   `powershell -ExecutionPolicy Bypass -File .\setup.ps1` instead.
-
-3. **Log in to Hugging Face** (free). Some datasets are only shared with logged-in users. Make an
-   account at huggingface.co, create a token under **Settings › Access Tokens**, then run this and
-   paste the token when it asks:
+1. **Log in to Hugging Face** (free). Some datasets are only shared with logged-in users. Make an
+   account at huggingface.co, create a token (a password for programs) under **Settings › Access
+   Tokens**, then run this and paste the token when it asks:
 
    ```powershell
    uv run hf auth login
    ```
 
-   Answer **no** if it asks about a git credential.
+   Answer **no** if it asks about a git credential. **Expect** it to say you're logged in.
 
-4. **Tell it about this computer.** Copy `machine.example.yaml` to `machine.yaml` (it holds
-   settings that differ between computers) and open it in Notepad:
-   - `volis_path`: the folder that has `volis.exe` in it. The last two steps put the trained
-     model into volis there. If volis isn't installed on this computer, see "Training on one
-     computer, finishing on another" below.
-   - `teacher_gguf`: the teacher model file. On the 5090, use Qwen3-32B:
-     ```yaml
-     teacher_gguf:
-       - inputs/teacher/Qwen3-32B-Q4_K_M.gguf
-     ```
-     On an 8 GB laptop, `inputs/teacher/Qwen3-8B-Q4_K_M.gguf` instead (only good enough for the
-     rehearsal).
+2. **Choose the teacher.** Open `machine.yaml` in Notepad and add the teacher model's file
+   (a `.gguf` file is a model in the format the teacher's program runs):
 
-5. **Download the teacher and the program that runs it.** The teacher is large (Qwen3-32B is
+   ```yaml
+   teacher_gguf:
+     - inputs/teacher/Qwen3-32B-Q4_K_M.gguf
+   ```
+
+   That's the one for the 5090. On an 8 GB laptop use `inputs/teacher/Qwen3-8B-Q4_K_M.gguf`
+   instead; it is only good enough for the rehearsal.
+
+3. **Download the teacher and the program that runs it.** The teacher is large (Qwen3-32B is
    about 20 GB), so this takes a while:
 
    ```powershell
@@ -183,9 +192,10 @@ works before spending hours on the real thing.
    uv run --project training hf download Qwen/Qwen3-32B-GGUF Qwen3-32B-Q4_K_M.gguf --local-dir inputs/teacher
    ```
 
-   The first command fetches `llama-server`, the program that runs the teacher on the graphics
-   card, and checks it downloaded correctly. The second fetches the teacher itself. (On the
-   laptop, use `Qwen/Qwen3-8B-GGUF` and `Qwen3-8B-Q4_K_M.gguf`, about 5 GB.)
+   The first command downloads `llama-server`, the program that runs the teacher on the graphics
+   card, and checks the download isn't damaged. The second downloads the teacher itself. (On the
+   laptop, use `Qwen/Qwen3-8B-GGUF` and `Qwen3-8B-Q4_K_M.gguf`, about 5 GB.) **Expect** the first
+   to end with `OK. llama-server ... is in ...`, and the second to print the file's path.
 
 ### Each time you train
 
@@ -195,9 +205,10 @@ works before spending hours on the real thing.
    .\fetch.ps1 jobs\es-mx-whisper.yaml
    ```
 
-   This downloads the starting model and the recordings the job file names into `inputs\`
-   (about 6 GB for this job). **Expect** it to end with `OK. Everything es-mx-whisper.yaml names is in ...`.
-   Anything already downloaded is skipped, so it's safe to run again.
+   This downloads the starting model and the recordings the job file names (about 6 GB for this
+   job) into the `inputs\` folder. **Expect** it to end with
+   `OK. Everything es-mx-whisper.yaml names is in ...`. Anything already downloaded is skipped,
+   so it's safe to run again.
 
 2. **Train:**
 
@@ -210,44 +221,47 @@ works before spending hours on the real thing.
    | Stage | What happens, simply |
    |---|---|
    | W1 | Checks the model and recordings are there and readable |
-   | W2 | Gets the recordings ready: same sound format, split into "learn from" and "test on" sets by speaker (so the test is fair), and the teacher adds punctuation |
+   | W2 | Gets the recordings ready: same sound format, split into "learn from" and "test on" sets by speaker (so the test is fair: the model is tested on voices it never heard), and the teacher adds punctuation |
    | W3 | Tests the original model, so there's a score to beat |
    | W4 | Trains. This is the long part: several hours on the 5090 |
-   | W5 | Tests the trained model on the same recordings, and stops if it didn't get better on the accent, or got worse on ordinary speech |
+   | W5 | Tests the trained model, and stops if it didn't get better at the accent, or got worse at ordinary speech |
    | W6 | Combines the add-on with the original model, and checks the result still scores the same |
    | W7 | Converts it into the files volis reads, and installs it into volis |
    | W8 | Tests the converted version the way volis will run it |
 
-   **Expect** it to end with `Every stage passed`. Everything it makes goes in
+   **Expect** it to end with `Every stage passed`. Everything it makes goes in the folder
    `runs\es-mx-whisper\`.
 
-   **If it stops**, it prints `STOP:`, the reason in plain words, and the command to carry on,
+   **If it stops,** it prints `STOP:`, the reason in plain words, and the command to carry on,
    such as `.\train.ps1 jobs\es-mx-whisper.yaml -From W4`. Fix what it says and run that command;
    stages that already passed aren't repeated.
 
-3. **Listen to it.** Numbers can improve while the model gets worse in ways they miss, so a person
+3. **Listen to it.** Scores can improve while the model gets worse in ways they miss, so a person
    has to try it. Open volis, tick **Compare recognizers**, press **Start** and speak Spanish. The
    new model (for this job, **Whisper large-v3-turbo Mexican Spanish (int8)**) is listed beside the
    others, each writing down what you said, so you can see which hears you best.
 
+What was learned from the first training run, and what to watch for, is in
+[docs/reports/](docs/reports/).
+
 ### The rehearsal: a quick test run
 
 Before the first real run on a new computer, or on a laptop, run the rehearsal. It does all eight
-stages on about an hour of recordings with a small model, so it finishes in about an hour:
+stages with a small model on about an hour of recordings, so it finishes in about an hour:
 
 ```powershell
 .\fetch.ps1 jobs\es-mx-whisper-small-rehearsal.yaml
 .\train.ps1 jobs\es-mx-whisper-small-rehearsal.yaml
 ```
 
-Its model shows up in volis as **Whisper small Mexican Spanish (rehearsal, int8)**. Treat it as
-proof that everything works, not as a model to use: an hour of recordings is too little to
-learn an accent well.
+**Expect** `Every stage passed`, and a new recognizer in volis called **Whisper small Mexican
+Spanish (rehearsal, int8)**. Treat it as proof that everything works, not as a model to use: an
+hour of recordings is too little to learn an accent well.
 
 ### Training on one computer, finishing on another
 
-The last two stages need volis on the same computer. If the 5090 desktop doesn't have volis,
-train there and finish on the computer that does:
+The last two stages (W7 and W8) need volis on the same computer. If the 5090 desktop doesn't have
+volis, train there and finish on the computer that does:
 
 1. On the desktop, stop after stage W6:
 
@@ -255,10 +269,12 @@ train there and finish on the computer that does:
    .\train.ps1 jobs\es-mx-whisper.yaml -To W6
    ```
 
-2. Copy the whole `runs\es-mx-whisper\` folder to the same place on the other computer (a USB
-   drive works; it's a few GB). That other computer needs this project set up too (steps 1, 2 and
-   4 above; no graphics card or teacher needed for these stages), and the job's downloads,
-   because the conversion reads the starting model's word list:
+   **Expect** `Stages up to W6 passed ... The next one is W7.`
+
+2. Copy the whole `runs\es-mx-whisper\` folder to the same place in the project on the other
+   computer (a USB drive works; it's a few GB). That computer needs
+   [the setup](#set-up-this-computer-once) too (no graphics card or teacher needed for these two
+   stages), and the job's downloads, because converting reads the starting model's word list:
 
    ```powershell
    .\fetch.ps1 jobs\es-mx-whisper.yaml
@@ -270,7 +286,31 @@ train there and finish on the computer that does:
    .\train.ps1 jobs\es-mx-whisper.yaml -From W7
    ```
 
-## Setting it up
+   **Expect** `Every stage passed`, and the new recognizer in volis.
+
+---
+
+## Details
+
+Everything below is reference: how each part works, why it's built this way, and what to do when
+something unusual goes wrong. You don't need it to convert or train.
+
+**Running the conversion steps one at a time.** `convert.ps1` just runs these commands in order.
+You can run them yourself, for example to look at a step's output before going on. Add
+`--force` to rerun a step that has already made its output folder.
+
+```powershell
+$c = "whisper-to-onnx\configs\es-small-hitz.yaml"
+uv run python whisper-to-onnx\steps\1_check_setup.py --config $c
+uv run python whisper-to-onnx\steps\2_download.py --config $c
+uv run python whisper-to-onnx\steps\3_to_openai_format.py --config $c
+uv run python whisper-to-onnx\steps\4_export_onnx.py --config $c
+uv run python whisper-to-onnx\steps\5_check_int8.py --config $c
+uv run python whisper-to-onnx\steps\6_assemble.py --config $c
+uv run python whisper-to-onnx\steps\7_verify.py --config $c
+```
+
+### Setting it up
 
 You need 64-bit Windows, [Git](https://git-scm.com) and [uv](https://docs.astral.sh/uv/) 0.11
 (`winget install astral-sh.uv`). Then, in the cloned folder:
@@ -292,7 +332,7 @@ Then copy `machine.example.yaml` to `machine.yaml` and set `volis_path` to the f
 The first run of step 1 also clones sherpa-onnx's source at v1.13.8 into `vendor/`, for its
 export script.
 
-### On another PC
+#### On another PC
 
 These steps take a fresh Windows 11 machine to the point where the steps run. Nothing is copied
 from the first machine except the repo, and what isn't committed is listed here.
@@ -323,7 +363,7 @@ If something differs between the two machines and you can't see why, compare
 `runs\_doctor.json` from each: it lists the versions, the DLL each engine loaded, other
 `onnxruntime.dll` copies and any security software.
 
-## Converting a Whisper model
+### Converting a Whisper model
 
 1. **Write a config.** Copy one from `whisper-to-onnx/configs/` and change it. Everything about
    a particular model lives in its config. The scripts never change between models.
@@ -369,7 +409,7 @@ If something differs between the two machines and you can't see why, compare
 Everything a run produces goes in `runs/<run_name>/`. A step never overwrites an earlier
 run's output unless you pass `--force`.
 
-## What each step does, and what it checks
+### What each step does, and what it checks
 
 | Step | Does | Stops if |
 |---|---|---|
@@ -390,7 +430,7 @@ and 4 feed both models the same input and compare their raw outputs. A correct c
 to within rounding (step 3 measured 0, step 4 about 0.00004), while one misplaced weight is off by
 whole units: swapping two weights in one layer on purpose gave a difference of 2.7.
 
-## Things that went wrong, so you don't have to find them again
+### Things that went wrong, so you don't have to find them again
 
 - **sherpa-onnx's export script only takes model names**, and picks settings from the name.
   The patch in `whisper-to-onnx/patches/` makes it take a checkpoint file, and read the mel
@@ -428,7 +468,7 @@ whole units: swapping two weights in one layer on purpose gave a difference of 2
   from Whisper's standard vocabulary, so step 2 refuses a model whose vocabulary size differs from
   its base model's.
 
-## Training (being built)
+### Training: how it works
 
 model-converter is growing from convert-only into a train-and-convert app
 (`train-and-convert-app.md` has the plan). What exists so far:
@@ -471,7 +511,7 @@ model-converter is growing from convert-only into a train-and-convert app
   CIEMPIESS with whisper-small (about an hour on an 8 GB laptop GPU). `jobs/es-mx-whisper.yaml`
   is the real job, for the 5090.
 
-### Things that went wrong while building it
+#### Things that went wrong while building the training parts
 
 - **Windows PowerShell 5.1 turns a program's stderr into an error when output is redirected.**
   With `$ErrorActionPreference = "Stop"`, Hugging Face's "unauthenticated requests" warning
@@ -510,7 +550,7 @@ model-converter is growing from convert-only into a train-and-convert app
   W8's hundreds. `engine_worker.py` has a `--wav-list` mode (`transcribe_many_like_cnverc`) that
   loads it once; its one-clip behaviour and runtime checks are unchanged.
 
-## Security software (McAfee, Trellix and the like)
+### Security software (McAfee, Trellix and the like)
 
 On-access scanners sometimes quarantine or lock DLLs while uv writes them: torch's, onnxruntime's,
 sherpa-onnx's. The install then looks finished, and a step fails much later when it first loads
@@ -532,7 +572,7 @@ instead (not set up here); step 7 needs Windows, because it runs `volis.exe`.
 `runs\_doctor.json` records what the doctor found. Comparing it between two machines is the
 quickest way to see what differs.
 
-## Tested with
+### Tested with
 
 | Config | Model | Result |
 |---|---|---|
@@ -547,7 +587,7 @@ Both ran on the same scripts; only the configs differ. Both are installed in vol
 listed as `ok`. Whether either beats the stock Whisper turbo on your own speech is step 7's
 listening test, which hasn't been done yet.
 
-## Layout
+### Layout
 
 ```
 model-converter/
