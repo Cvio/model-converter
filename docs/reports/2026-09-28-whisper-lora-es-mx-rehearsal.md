@@ -21,7 +21,7 @@ works before the real run on the RTX 5090.
 - **The conversion to volis's format costs little:** the compressed (int8) model scores 13.3% in
   volis's own engine, 0.6 points above full precision.
 - **But ordinary Spanish got worse** (4.98% to 6.64%), and much of the "improvement" is the model
-  copying how this dataset's transcribers wrote, not just hearing the accent better. Both need
+  copying how this dataset's transcribers wrote, not just hearing the dialect better. Both need
   fixing before a model like this goes into daily use. The real job already includes the first
   fix (mixing in ordinary speech).
 
@@ -36,7 +36,7 @@ works before the real run on the RTX 5090.
 - **int8:** a compressed form of the model (numbers stored in 8 bits), about a third of the size.
   volis runs its models this way.
 - **Test data / regression data:** recordings the model never trained on. *Test* is Mexican
-  Spanish (does it hear the accent better?); *regression* is ordinary Latin American Spanish
+  Spanish (does it hear the dialect better?); *regression* is ordinary Latin American Spanish
   (did it get worse at everything else?).
 
 ## What was run
@@ -109,7 +109,7 @@ The merged model went through the existing converter unchanged:
 
 ## What we learned
 
-### 1. Much of the gain is transcription style, not only accent
+### 1. Much of the gain is transcription style, not only dialect
 
 Side by side, the tuned model often wins by writing the way CIEMPIESS's transcribers wrote:
 
@@ -122,7 +122,7 @@ Side by side, the tuned model often wins by writing the way CIEMPIESS's transcri
 CIEMPIESS transcribes word for word, keeping repeated words ("lo lo lo", "que que") and the
 filler "no". Base Whisper tidies those away, which counts as errors against this reference;
 the tuned model learned to keep them. That is a real change in behaviour, but not the same thing
-as understanding the accent better, and for captions in volis the tidy version may even be
+as understanding the dialect better, and for captions in volis the tidy version may even be
 preferable. **The 3.8-point improvement overstates how much better it hears Mexican Spanish.**
 Scoring on a test set transcribed in a tidier style (or scoring with fillers and repeats removed
 from both sides) would separate the two.
@@ -156,7 +156,8 @@ Whether that is enough is the first thing to check on the 5090.
 - **The encoder's LoRA can learn nothing without any error.** With gradient checkpointing,
   `enable_input_require_grads()` only reaches the decoder. The encoder's input comes from a
   frozen convolution, so nothing entering its checkpointed layers needs a gradient, and its LoRA
-  would stay at zero while training looks normal. The encoder is where accent is heard. W4 hooks
+  would stay at zero while training looks normal. The encoder is the part that hears the audio,
+  including how the dialect sounds. W4 hooks
   the first convolution and checks, before the first step, that every one of the 96 encoder LoRA
   weights receives a gradient.
 - **Checking that weights moved after step 1 is a false alarm.** The learning rate warms up from

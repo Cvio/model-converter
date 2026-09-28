@@ -403,7 +403,8 @@ Spanish that means lowercasing and removing punctuation. For Arabic it also mean
 diacritics and unifying letter variants.
 
 **W4 — train.** LoRA on the attention layers (`q_proj, k_proj, v_proj, out_proj`) in **both
-the encoder and the decoder**. The encoder is where accent is heard, and turbo has only four
+the encoder and the decoder**. The encoder is the part that hears the audio, including how
+the dialect sounds, and turbo has only four
 decoder layers. Three quiet failure points, all handled:
 
 - With gradient checkpointing on, call `model.enable_input_require_grads()`, or training learns

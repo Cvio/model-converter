@@ -8,8 +8,8 @@ This project gets better speech recognizers into volis. It can do two things:
 
 - **Convert a model:** take a speech recognizer someone published on the internet and turn it
   into the files volis can run. Useful when someone has already made a model for your language
-  or accent.
-- **Train a model:** teach a speech recognizer an accent (for example Mexican Spanish) from
+  or dialect.
+- **Train a model:** teach a speech recognizer a dialect (for example Mexican Spanish) from
   recordings, then convert it and put it into volis.
 
 It is a separate project from volis on purpose: it downloads from the internet and volis must
@@ -21,7 +21,7 @@ never do that. The two only meet when a finished model folder is copied into vol
 |---|---|
 | Get this computer ready (always do this first) | [Set up this computer](#set-up-this-computer-once) |
 | Put an existing model from the internet into volis | [Convert a model](#convert-a-model) |
-| Teach a model an accent and put it into volis | [Train your own model](#train-your-own-model) |
+| Teach a model a dialect and put it into volis | [Train your own model](#train-your-own-model) |
 | Try the whole training process quickly | [The rehearsal](#the-rehearsal-a-quick-test-run) |
 | Understand a word used here | [Words used here](#words-used-here) |
 | Fix something, or learn how it works inside | [Details](#details) |
@@ -41,6 +41,9 @@ never do that. The two only meet when a finished model folder is copied into vol
   it doesn't start from nothing.
 - **LoRA:** a small add-on file that holds what training taught the model. The original model
   stays untouched until the end, when the two are combined (**merged**) into one model.
+- **Dialect:** the way a language is spoken in one place: its words, expressions and grammar,
+  as well as how it sounds. Mexican Spanish says *carro* where Spain says *coche*. volis calls
+  these **varieties** (Spanish (Mexico), Arabic (Iraq)).
 - **Dataset:** a collection of recordings with their transcripts.
 - **Teacher:** a much bigger language model that tidies transcripts before training (adds capital
   letters and punctuation). It is only a helper and is never put into volis.
@@ -148,7 +151,7 @@ volis.
 
 ## Train your own model
 
-Use this to teach Whisper an accent from recordings, then put the result into volis. Two
+Use this to teach Whisper a dialect from recordings, then put the result into volis. Two
 commands do the work, and every stage checks itself and stops with a plain message if something
 is wrong.
 
@@ -224,7 +227,7 @@ After [Set up this computer](#set-up-this-computer-once):
    | W2 | Gets the recordings ready: same sound format, split into "learn from" and "test on" sets by speaker (so the test is fair: the model is tested on voices it never heard), and the teacher adds punctuation |
    | W3 | Tests the original model, so there's a score to beat |
    | W4 | Trains. This is the long part: several hours on the 5090 |
-   | W5 | Tests the trained model, and stops if it didn't get better at the accent, or got worse at ordinary speech |
+   | W5 | Tests the trained model, and stops if it didn't get better at the dialect, or got worse at ordinary speech |
    | W6 | Combines the add-on with the original model, and checks the result still scores the same |
    | W7 | Converts it into the files volis reads, and installs it into volis |
    | W8 | Tests the converted version the way volis will run it |
@@ -256,7 +259,7 @@ stages with a small model on about an hour of recordings, so it finishes in abou
 
 **Expect** `Every stage passed`, and a new recognizer in volis called **Whisper small Mexican
 Spanish (rehearsal, int8)**. Treat it as proof that everything works, not as a model to use: an
-hour of recordings is too little to learn an accent well.
+hour of recordings is too little to learn a dialect well.
 
 ### Training on one computer, finishing on another
 

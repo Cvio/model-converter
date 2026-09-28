@@ -1,8 +1,9 @@
 """W4 - train: a LoRA on Whisper's attention layers, encoder and decoder.
 
-LoRA on q_proj, k_proj, v_proj and out_proj in both the encoder (where accent
-is heard) and the decoder. Validation WER every training.eval_every_steps;
-the LoRA with the lowest validation WER is kept, not the last one.
+LoRA on q_proj, k_proj, v_proj and out_proj in both the encoder (which hears
+the audio, including how the dialect sounds) and the decoder. Validation WER
+every training.eval_every_steps; the LoRA with the lowest validation WER is
+kept, not the last one.
 
 Quiet failure points, all handled here:
 - With gradient checkpointing, enable_input_require_grads() is needed or the
