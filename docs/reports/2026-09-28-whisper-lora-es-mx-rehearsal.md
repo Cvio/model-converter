@@ -199,3 +199,74 @@ were real rewrites: dropping the hesitation "e", correcting transcripts' misspel
 - Transcripts behind every score: `runs/es-mx-whisper-small-rehearsal/scores/`
 - The pipeline: `training/steps/whisper/`, run by `train.ps1`
 - The plan it follows: `train-and-convert-app.md`
+
+---
+
+## Part 2: translation pairs for the translator (the pairs job rehearsal)
+
+*Job: `jobs/es-mx-pairs-rehearsal.yaml`. Same laptop, teacher Qwen3-8B. Results from
+`runs/es-mx-pairs-rehearsal/`.*
+
+### In short
+
+The translator (Qwen) learns a dialect from **translation pairs**: a Mexican Spanish sentence and
+its English, used both ways. The pairs job makes them from the Whisper rehearsal's Mexican
+transcripts, so the Mexican side is always something a real person said, and a larger model
+(the **teacher**) writes the English. Every stage worked, and the last one did its job: a check
+of 50 translations found the rehearsal teacher **not good enough (48% correct, 90% needed)**, so
+the job stopped before the translator could learn from them.
+
+### What was run
+
+| | |
+|---|---|
+| Sentences | 300 training and 100 test transcripts (5 words or more; test speakers kept apart) |
+| Teacher | Qwen3-8B (Q4_K_M) on the laptop GPU, greedy decoding, thinking off |
+| Teacher check (P2) | 150 FLORES+ devtest sentences, Spanish to English: **chrF 59.5** |
+| Pairs made (P3) | 600 training (300 each way), 200 test, 1,994 general (FLORES+ dev, Spanish ↔ English) |
+| Tidying | the teacher removes false starts, repeats and "e" hesitations from the Mexican side, and nothing else; it did more than that on 25 of 400 lines, which kept their original wording |
+| Review (P4) | 50 random test pairs, marked by Opus 5 standing in for a fluent speaker: **24 y, 26 n (48%)** |
+
+The reviewer here was a model, as a quick rehearsal check. The step exists because only a native
+speaker can reliably judge whether a translation of Mexican speech is right and natural; for the
+real run, a person should do it.
+
+### Why half the translations failed
+
+| Pattern | Example (Mexican transcript → teacher's English) |
+|---|---|
+| **Statements read as questions** | "porque no sabían…" → "why didn't they know…" |
+| **Hesitation "e" translated as a word or name** | "…fue olvidada dice e en…" → "…says E, in in a lot" |
+| **Spelled-out letters not recognised** | "ve i hache" (VIH, Spanish for HIV) → "V and H" |
+| **Colloquial spellings misread** | *entos*, *entoces* (entonces), *libertá*, *díctun* |
+| **Who's who confused** | "cuando yo la conocí te tenía quince" → "when I met her **you** were fifteen" |
+| **Long rambling lines garbled** | "que la vistiera de mujer de hombre perdón" → "dress like a man's woman" |
+
+Two causes explain most of it, both rehearsal shortcuts:
+
+1. **No punctuation.** The rehearsal skipped punctuation restoring, so the teacher got
+   all-lowercase text with no full stops or question marks. "porque" (because) and "por qué"
+   (why) look alike without the accent and the ¿?, and one thought runs into the next.
+2. **A small teacher.** An 8B model stumbles on CIEMPIESS's writing conventions: letters spelled
+   out ("ve i hache", "be", "ce"), colloquial spellings, and "e" for a hesitation.
+
+A stronger translation score on FLORES+ (59.5) didn't predict this: FLORES+ is clean, written,
+punctuated text. **The teacher check needs spoken, dialect text too**, which is what the person
+review provides.
+
+### What the data can teach
+
+CIEMPIESS is university radio talk, mostly law, economics and social issues. It is real Mexican
+speech, but everyday dialect words (*carro*, *chamba*, *¿qué onda?*) are rare in it. Pairs made
+from it teach Mexican *spoken register* more than everyday *vocabulary*. For a translator that
+handles everyday Mexican conversation, more conversational speech datasets are needed; the jobs
+take any speech dataset, so adding one is a job-file change.
+
+### What this means for the real run
+
+1. **Punctuation restoring on** (the real Whisper job has it), with the 32B teacher. The same
+   review should then be run again.
+2. **Tell the teacher CIEMPIESS's conventions** in its translation prompt: spelled-out letters
+   are acronyms ("ve i hache" is VIH/HIV), "e" alone is a hesitation, and *entos*/*pus*/*-tá* are
+   colloquial spellings. This is a prompt change in `teacher/teacher.py`.
+3. **A person reviews the 50 pairs.** Only after 90% does the translator train on them.
