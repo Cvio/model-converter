@@ -175,6 +175,38 @@ def print_columns(folder: Path) -> None:
     print(f"  rows: {rows:,}")
 
 
+FLORES_REPO = "openlanguagedata/flores_plus"
+FLORES_SPLITS = ("dev", "devtest")
+
+
+def fetch_flores(job: dict) -> Path:
+    """FLORES+ (reference translations of the same sentences in 200+ languages)
+    for the pairs job: the dialect's language (flores_code) and English, dev
+    and devtest. It publishes one JSONL file per language and split rather than
+    Parquet; those are plain data files, not a loading script, so they're
+    taken as they are. The dataset is gated: accept its terms on the website."""
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import GatedRepoError
+
+    code = job.get("flores_code")
+    if not code:
+        raise Stop("the job names teacher_check but no flores_code (for example spa_Latn)")
+    folder = INPUTS / "data" / "flores_plus"
+    heading(f"hf:{FLORES_REPO} ({code} and eng_Latn, dev and devtest)  ->  {folder}")
+    for split in FLORES_SPLITS:
+        for language in (code, "eng_Latn"):
+            name = f"{split}/{language}.jsonl"
+            if (folder / name).is_file():
+                continue
+            try:
+                hf_hub_download(FLORES_REPO, name, repo_type="dataset", local_dir=folder)
+            except GatedRepoError as e:
+                raise Stop(gated_message(FLORES_REPO, "dataset")) from e
+            print(f"  {name}")
+    print(f"  ready: {', '.join(sorted(str(p.relative_to(folder)) for p in folder.rglob('*.jsonl')))}")
+    return folder
+
+
 def entries(job: dict) -> list:
     """(hf reference, 'models' or 'data') for every hf: value the job names."""
     found = []
@@ -191,7 +223,6 @@ def entries(job: dict) -> list:
     visit(job.get("base_model"), "models")
     visit(job.get("data"), "data")
     visit(job.get("sources"), "data")
-    visit(job.get("teacher_check"), "data")
     return found
 
 
@@ -220,11 +251,13 @@ def step() -> None:
         raise Stop("usage: fetch.py <job file>")
     job = load_job(sys.argv[1])
     found = entries(job)
-    if not found:
+    if not found and not job.get("teacher_check"):
         print("The job names nothing on Hugging Face (no hf: entries); nothing to fetch.")
         return
     for ref, kind in found:
         fetch(ref, kind)
+    if job.get("teacher_check"):
+        fetch_flores(job)
     print(f"\nOK. Everything {job['_path'].name} names is in {INPUTS}.")
 
 

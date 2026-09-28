@@ -37,6 +37,12 @@ $stagesByKind = @{
         @("W7", "training\steps\whisper\w7_convert.py", "training"),
         @("W8", "training\steps\whisper\w8_int8.py", "converter")
     )
+    "pairs" = @(
+        @("P1", "training\steps\pairs\p1_collect.py", "training"),
+        @("P2", "training\steps\pairs\p2_teacher.py", "training"),
+        @("P3", "training\steps\pairs\p3_translate.py", "training"),
+        @("P4", "training\steps\pairs\p4_review.py", "training")
+    )
 }
 
 if (-not (Test-Path $Job)) {

@@ -256,9 +256,8 @@ kind: pairs
 name: es-mx-pairs
 variety: es-MX                           # the dialect side's language tag
 other: en                                # the other side
-sources:
-  train: runs/es-mx-whisper/data/train   # transcripts from the Whisper job's prepare stage
-  test: runs/es-mx-whisper/data/test     # test speakers only; becomes the pair test set
+from_whisper_job: es-mx-whisper          # its train/validation become training pairs, its test the pair test set
+variety_name: Mexican Spanish            # the dialect's name, as the teacher is told it
 min_words: 5
 teacher_check: hf:openlanguagedata/flores_plus    # reference translations for choosing the teacher
 flores_code: spa_Latn                    # the FLORES+ language closest to the dialect (acm_Arab for ar-IQ)
@@ -438,7 +437,8 @@ worse: int8 lost too much, and the job should be re-converted with `use_fp32: tr
 
 ## Stages of a pairs job
 
-**P1 — collect.** Read the transcripts from `sources`. Drop lines under `min_words` (fragments
+**P1 — collect.** Read the transcripts from the Whisper job's prepared data (dialect speakers
+only: clips mixed in from ordinary speech are left out). Drop lines under `min_words` (fragments
 like "para que sea" teach nothing), and remove duplicates. Print counts for train and test.
 
 **P2 — choose the teacher.** If `machine.yaml` names more than one `teacher_gguf`, translate the
@@ -464,6 +464,16 @@ language code (`flores_code:`), so no script assumes one.
 - **General pairs:** FLORES+ `dev` (never `devtest`) in both directions, for the Qwen job's mix.
 
 Write `out/train.jsonl`, `out/test.jsonl` and `out/general.jsonl` in the JSONL format above.
+(Built in item 5: FLORES+ publishes one JSONL file per language and split, not Parquet, so
+`fetch.ps1` downloads just the four files a job needs. The general pairs use the plain language
+tag, `es`, since FLORES+ is standard Spanish. A tidied line that fails the removals-only check
+keeps its original wording rather than being dropped.)
+
+**What the data can teach.** CIEMPIESS LIGHT is university radio talk, mostly about law and
+economics. It is real Mexican speech, but everyday dialect words (*carro*, *chamba*, *¿qué
+onda?*) are rare in it, so pairs made from it teach Mexican spoken register more than everyday
+dialect vocabulary. More conversational Mexican speech datasets are needed for that; the jobs
+take any speech dataset, so adding one is a job-file change.
 
 **P4 — the fluent-speaker check.** Write `out/review.csv`: 50 random pairs from the test set,
 with an empty `ok` column. **Stop and ask the user** to have a fluent speaker of the dialect
@@ -709,5 +719,6 @@ Each stage passes its check before the next is started.
    *Built 2026-09-28 on volis's `training-commands` branch (M7.8, `97e6269`); the user tests it
    on another machine before merging. It also fixed stray spaces in volis's prompt.*
 5. The pairs job, P1 to P4.
+   *Built 2026-09-28; the rehearsal ran P1 to P3 and stopped at P4 for the fluent-speaker review.*
 6. The Qwen job, Q1 to Q8.
 7. The training container and `docs/CONTAINER.md`.

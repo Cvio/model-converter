@@ -246,5 +246,56 @@ def punctuate(teacher: Teacher, lines: list, system: str = PUNCTUATE_SYSTEM) -> 
     return [(line, answer, words(answer) == words(line)) for line, answer in zip(lines, answers)]
 
 
+# --- Translating, and tidying the dialect side ----------------------------------
+
+
+def translate_system(source_name: str, target_name: str) -> str:
+    return (
+        f"You translate transcripts of spoken {source_name} into natural, everyday "
+        f"{target_name}. Translate slang and regional words by what they mean, not word "
+        f"for word (for example, Mexican Spanish \"carro\" is \"car\", \"chamba\" is \"job\"). "
+        f"Keep the speaker's meaning and tone; don't add, explain or leave anything out. "
+        f"If the transcript is a question, the translation is a question. "
+        f"Reply with the translation only."
+    )
+
+
+def translate(teacher: Teacher, lines: list, source_name: str, target_name: str) -> list:
+    system = translate_system(source_name, target_name)
+    return teacher.complete_all(
+        [[{"role": "system", "content": system}, {"role": "user", "content": line}] for line in lines]
+    )
+
+
+CLEAN_SYSTEM = (
+    "You tidy a word-for-word transcript of speech by removing only these: false starts "
+    "and cut-off words (\"es contra contratada\" becomes \"es contratada\"), words said "
+    "twice by accident (\"que que ver\" becomes \"que ver\"), and hesitation sounds such as "
+    "\"e\" and \"eh\". Remove nothing else, change no word, add no word, and keep the "
+    "speaker's own words and slang exactly as they are. If there is nothing to remove, "
+    "reply with the transcript unchanged. Reply with the transcript only."
+)
+
+
+def is_removal_only(original: str, tidied: str) -> bool:
+    """Whether tidied is original with some words taken out, and nothing
+    added or changed (compared as words(): case, punctuation, accents aside).
+    At least half the words must remain: more than that is rewriting."""
+    before, after = words(original), words(tidied)
+    if not after or len(after) < len(before) / 2:
+        return False
+    rest = iter(before)
+    return all(any(w == b for b in rest) for w in after)
+
+
+def clean_disfluencies(teacher: Teacher, lines: list) -> list:
+    """(original, tidied, kept) per line; kept is False if the teacher did
+    anything but remove words."""
+    answers = teacher.complete_all(
+        [[{"role": "system", "content": CLEAN_SYSTEM}, {"role": "user", "content": line}] for line in lines]
+    )
+    return [(line, answer, is_removal_only(line, answer)) for line, answer in zip(lines, answers)]
+
+
 def write_json(path: Path, data) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")

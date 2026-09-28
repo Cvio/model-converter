@@ -1,0 +1,17 @@
+# A quick run of the pairs job on the rehearsal Whisper job's transcripts,
+# with the laptop's small teacher, to prove every stage before the real run.
+#     .\fetch.ps1 jobs\es-mx-pairs-rehearsal.yaml
+#     .\train.ps1 jobs\es-mx-pairs-rehearsal.yaml
+kind: pairs
+name: es-mx-pairs-rehearsal
+from_whisper_job: es-mx-whisper-small-rehearsal
+variety: es-MX
+variety_name: Mexican Spanish
+other: en
+min_words: 5
+teacher_check: hf:openlanguagedata/flores_plus
+flores_code: spa_Latn
+# Rehearsal limits, so every stage runs in minutes.
+max_lines: 300
+max_test_lines: 100
+flores_limit: 150

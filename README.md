@@ -291,6 +291,71 @@ volis, train there and finish on the computer that does:
 
    **Expect** `Every stage passed`, and the new recognizer in volis.
 
+## Make translation examples for the dialect
+
+The translator in volis (a small model called Qwen) turns English into the dialect and the dialect
+into English. To train it on a dialect, it needs **translation pairs**: the same sentence in
+both languages, thousands of times over. This step makes them from the dialect recordings the
+Whisper job already prepared, so the dialect side is always something a real person said.
+
+**A few more words:**
+- **Translation pair:** one sentence in the dialect and its English translation. Each is used
+  both ways: dialect to English, and English to dialect.
+- **FLORES+:** a public set of the same sentences, carefully translated into 200+ languages. It's
+  used to test how good the teacher is, and as general translation examples.
+- **chrF:** a score for how close a translation is to a reference translation. Higher is better.
+
+**Before the first time (once):** FLORES+ is only shared with people who accept its terms. Open
+<https://huggingface.co/datasets/openlanguagedata/flores_plus> while logged in to Hugging Face and
+accept them. (You need the Hugging Face login from [Extra setup for training](#extra-setup-for-training-once).)
+
+**Each time:**
+
+1. **The Whisper job must have prepared its data** (its stage W2). For the real run that's
+   `jobs\es-mx-whisper.yaml`; running the whole Whisper job does it.
+
+2. **Download FLORES+:**
+
+   ```powershell
+   .\fetch.ps1 jobs\es-mx-pairs.yaml
+   ```
+
+   **Expect** it to end with `OK. Everything es-mx-pairs.yaml names is in ...`. If it says the
+   dataset is gated, the terms above haven't been accepted yet.
+
+3. **Make the pairs:**
+
+   ```powershell
+   .\train.ps1 jobs\es-mx-pairs.yaml
+   ```
+
+   | Stage | What happens, simply |
+   |---|---|
+   | P1 | Collects the dialect sentences from the Whisper job, keeping sentences from test speakers apart so the test stays fair |
+   | P2 | Tests the teacher on FLORES+ and prints its score (with several teachers in `machine.yaml`, it picks the best) |
+   | P3 | The teacher translates every sentence into English, and lightly tidies the dialect side (removes repeated words and "um"s, nothing else) |
+   | P4 | Asks a person to check 50 translations (below) |
+
+4. **The person check.** P4 stops on purpose and prints where the file is:
+   `runs\es-mx-pairs\out\review.csv`. A fluent speaker of the dialect opens it in Excel, reads
+   each dialect sentence and the teacher's English, and writes **y** in the `ok` column if the
+   English is a correct, natural translation, or **n** if it isn't. Save it (as CSV), then carry
+   on:
+
+   ```powershell
+   .\train.ps1 jobs\es-mx-pairs.yaml -From P4
+   ```
+
+   **Expect** `Every stage passed` if at least 45 of 50 are **y**. If fewer are, it stops and shows
+   the ones marked **n**: the teacher isn't good enough, and the translator would learn its
+   mistakes. A stronger teacher is the fix.
+
+The pairs end up in `runs\es-mx-pairs\out\`: `train.jsonl` to learn from, `test.jsonl` to score
+on, and `general.jsonl` (from FLORES+) so the translator doesn't get worse at ordinary sentences.
+
+There's also a rehearsal of this step, `jobs\es-mx-pairs-rehearsal.yaml`, which uses the
+Whisper rehearsal's sentences and finishes in minutes.
+
 ---
 
 ## Details

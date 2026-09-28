@@ -1,0 +1,14 @@
+# English <-> Mexican Spanish translation pairs, for the Qwen job to train on.
+# Made from the Mexican transcripts the Whisper job prepared, so the Mexican
+# side is always real speech from real speakers.
+#     .\fetch.ps1 jobs\es-mx-pairs.yaml
+#     .\train.ps1 jobs\es-mx-pairs.yaml
+kind: pairs
+name: es-mx-pairs
+from_whisper_job: es-mx-whisper          # whose prepared transcripts to use (its W2 must have run)
+variety: es-MX                           # the dialect side's language tag (as volis names it)
+variety_name: Mexican Spanish            # the dialect's name, as the teacher is told it
+other: en                                # the other side
+min_words: 5                             # shorter lines are fragments that teach nothing
+teacher_check: hf:openlanguagedata/flores_plus   # reference translations, for choosing the teacher
+flores_code: spa_Latn                    # the FLORES+ language closest to the dialect (acm_Arab for ar-IQ)
