@@ -706,6 +706,8 @@ Each stage passes its check before the next is started.
 3. The Whisper job, W1 to W8. First a fast rehearsal with `whisper-small` and about one hour of
    CIEMPIESS, to prove every stage end to end. Then turbo on the full data, on the desktop.
 4. The two volis additions, in a separate session in the volis repo (`volis-additions.md`).
+   *Built 2026-09-28 on volis's `training-commands` branch (M7.8, `97e6269`); the user tests it
+   on another machine before merging. It also fixed stray spaces in volis's prompt.*
 5. The pairs job, P1 to P4.
 6. The Qwen job, Q1 to Q8.
 7. The training container and `docs/CONTAINER.md`.

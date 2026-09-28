@@ -1,5 +1,8 @@
 # Instructions: two command-line additions to volis, for training
 
+> **Done** (2026-09-28): built as volis M7.8 on its `training-commands` branch; a copy of this
+> file is kept there as `docs/plans/training-commands.md`.
+
 For Claude Code, in the **volis** repo. Read `CLAUDE.md` and `SPEC.md` first. Their rules apply
 in full.
 
