@@ -249,7 +249,9 @@ def punctuate(teacher: Teacher, lines: list, system: str = PUNCTUATE_SYSTEM) -> 
 # --- Translating, and tidying the dialect side ----------------------------------
 
 
-def translate_system(source_name: str, target_name: str) -> str:
+def translate_system(source_name: str, target_name: str, notes: str = "") -> str:
+    """notes: what the teacher should know about how this dataset is written
+    (a pairs job's teacher_notes), added at the end."""
     return (
         f"You translate transcripts of spoken {source_name} into natural, everyday "
         f"{target_name}. Translate slang and regional words by what they mean, not word "
@@ -257,11 +259,13 @@ def translate_system(source_name: str, target_name: str) -> str:
         f"Keep the speaker's meaning and tone; don't add, explain or leave anything out. "
         f"If the transcript is a question, the translation is a question. "
         f"Reply with the translation only."
+        + (f" About how these transcripts are written: {notes.strip()}" if notes.strip() else "")
     )
 
 
-def translate(teacher: Teacher, lines: list, source_name: str, target_name: str) -> list:
-    system = translate_system(source_name, target_name)
+def translate(teacher: Teacher, lines: list, source_name: str, target_name: str,
+              notes: str = "") -> list:
+    system = translate_system(source_name, target_name, notes)
     return teacher.complete_all(
         [[{"role": "system", "content": system}, {"role": "user", "content": line}] for line in lines]
     )

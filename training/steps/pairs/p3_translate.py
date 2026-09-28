@@ -64,7 +64,8 @@ def work(job: dict) -> dict:
     test = [r["text"] for r in read_jsonl(out_dir(job) / "transcripts-test.jsonl")]
     lines = train + test
     cache = Cache(run_dir(job) / "teacher-cache.json")
-    to_english = "translate:" + translate_system(name, "English")
+    notes = job.get("teacher_notes", "")
+    to_english = "translate:" + translate_system(name, "English", notes)
     tidy = "clean:" + CLEAN_SYSTEM
 
     todo_t, todo_c = cache.missing(to_english, lines), cache.missing(tidy, lines)
@@ -72,7 +73,7 @@ def work(job: dict) -> dict:
         heading(f"The teacher ({teacher_path.name}): {len(todo_t):,} to translate, {len(todo_c):,} to tidy")
         with Teacher(teacher_path, run_dir(job) / "logs") as teacher:
             if todo_t:
-                cache.put(to_english, todo_t, translate(teacher, todo_t, name, "English"))
+                cache.put(to_english, todo_t, translate(teacher, todo_t, name, "English", notes))
             if todo_c:
                 results = clean_disfluencies(teacher, todo_c)
                 cache.put(tidy, todo_c, [tidied for _, tidied, _ in results])

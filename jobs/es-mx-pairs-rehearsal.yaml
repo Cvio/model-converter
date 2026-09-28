@@ -11,6 +11,14 @@ other: en
 min_words: 5
 teacher_check: hf:openlanguagedata/flores_plus
 flores_code: spa_Latn
+# What the teacher should know about how CIEMPIESS transcripts are written.
+# The rehearsal review found the teacher tripping on exactly these.
+teacher_notes: >-
+  They are all lowercase with no punctuation. A letter spelled out as a word is part of an
+  acronym ("ve i hache" is VIH, which is HIV). The word "e" on its own is a hesitation sound,
+  like "um". Colloquial spellings are kept: "entos" and "entoces" are "entonces", "pus" is
+  "pues", "libertá" is "libertad". "porque" means "because"; it is a question ("why") only
+  when the sentence clearly asks one.
 # Rehearsal limits, so every stage runs in minutes.
 max_lines: 300
 max_test_lines: 100

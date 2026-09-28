@@ -12,3 +12,11 @@ other: en                                # the other side
 min_words: 5                             # shorter lines are fragments that teach nothing
 teacher_check: hf:openlanguagedata/flores_plus   # reference translations, for choosing the teacher
 flores_code: spa_Latn                    # the FLORES+ language closest to the dialect (acm_Arab for ar-IQ)
+# What the teacher should know about how CIEMPIESS transcripts are written.
+# The rehearsal review found the teacher tripping on exactly these.
+teacher_notes: >-
+  They are all lowercase with no punctuation. A letter spelled out as a word is part of an
+  acronym ("ve i hache" is VIH, which is HIV). The word "e" on its own is a hesitation sound,
+  like "um". Colloquial spellings are kept: "entos" and "entoces" are "entonces", "pus" is
+  "pues", "libertá" is "libertad". "porque" means "because"; it is a question ("why") only
+  when the sentence clearly asks one.
