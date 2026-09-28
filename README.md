@@ -92,6 +92,184 @@ uv run python whisper-to-onnx\steps\7_verify.py --config $c
 
 Everything after this section is detail: what the steps do, and why.
 
+## Training your own model (quick start)
+
+This is how to teach a speech recognizer an accent, for example Mexican Spanish, and put the
+result into volis. You don't need to understand machine learning to do it: two commands do the
+work, and every step checks itself and stops with a plain message if something is wrong.
+
+### A few words first
+
+- **Model:** a file that has learned to do one job, here writing down what someone says.
+  Whisper is the one volis uses to hear speech.
+- **Training** (also called fine-tuning): showing a model thousands of recordings with their
+  correct transcripts, so it gets better at that kind of speech. It changes the model a little;
+  it doesn't start from nothing.
+- **LoRA:** a small add-on file that holds what training taught the model. The original model
+  is left untouched until the end, when the two are combined (**merged**).
+- **GPU:** the graphics card. Training runs on it, because it is many times faster than the
+  main processor. It must be an NVIDIA card.
+- **Dataset:** a collection of recordings with their transcripts. The ones used here are
+  downloaded from Hugging Face, a public website for models and datasets.
+- **Teacher:** a much bigger language model that tidies the transcripts before training (adds
+  capital letters and punctuation). It is only a helper and is never put into volis.
+- **Job file:** a short text file in `jobs\` that says what to train: which model, which
+  recordings, which language. You pick one; you don't have to write one.
+
+### Which computer to use
+
+Training needs an NVIDIA graphics card with plenty of memory. The desktop with the **RTX 5090**
+is the one for real runs. A laptop with an 8 GB card, like the RTX 4070, can only do the small
+**rehearsal** job: a quick run of every step on about an hour of recordings, to prove everything
+works before spending hours on the real thing.
+
+### Once per computer
+
+1. **Install the programs it needs.** Open PowerShell (Start menu, type `PowerShell`) and run:
+
+   ```powershell
+   winget install Git.Git astral-sh.uv
+   ```
+
+   Git downloads this project; uv installs Python and everything this project uses. Also make sure
+   the **NVIDIA driver** is up to date (the NVIDIA app, or nvidia.com): training can't reach the
+   graphics card without it. Close PowerShell and open a new one afterwards, so it finds what you
+   installed.
+
+2. **Get this project and set it up:**
+
+   ```powershell
+   cd D:\AI_Data\projects
+   git clone https://github.com/Cvio/model-converter.git
+   cd model-converter
+   .\setup.ps1
+   ```
+
+   This installs two separate toolsets: one for converting models, and one for training (about
+   3 GB, because it includes the graphics-card version of PyTorch, the library that does the
+   training). It ends by training a tiny test model for ten steps, to prove the graphics card
+   works. **Expect** it to finish with `OK. This machine can train.` It takes 10 to 20 minutes the
+   first time. If PowerShell refuses to run it, use
+   `powershell -ExecutionPolicy Bypass -File .\setup.ps1` instead.
+
+3. **Log in to Hugging Face** (free). Some datasets are only shared with logged-in users. Make an
+   account at huggingface.co, create a token under **Settings › Access Tokens**, then run this and
+   paste the token when it asks:
+
+   ```powershell
+   uv run hf auth login
+   ```
+
+   Answer **no** if it asks about a git credential.
+
+4. **Tell it about this computer.** Copy `machine.example.yaml` to `machine.yaml` (it holds
+   settings that differ between computers) and open it in Notepad:
+   - `volis_path`: the folder that has `volis.exe` in it. The last two steps put the trained
+     model into volis there. If volis isn't installed on this computer, see "Training on one
+     computer, finishing on another" below.
+   - `teacher_gguf`: the teacher model file. On the 5090, use Qwen3-32B:
+     ```yaml
+     teacher_gguf:
+       - inputs/teacher/Qwen3-32B-Q4_K_M.gguf
+     ```
+     On an 8 GB laptop, `inputs/teacher/Qwen3-8B-Q4_K_M.gguf` instead (only good enough for the
+     rehearsal).
+
+5. **Download the teacher and the program that runs it.** The teacher is large (Qwen3-32B is
+   about 20 GB), so this takes a while:
+
+   ```powershell
+   uv run --project training python teacher/get_server.py
+   uv run --project training hf download Qwen/Qwen3-32B-GGUF Qwen3-32B-Q4_K_M.gguf --local-dir inputs/teacher
+   ```
+
+   The first command fetches `llama-server`, the program that runs the teacher on the graphics
+   card, and checks it downloaded correctly. The second fetches the teacher itself. (On the
+   laptop, use `Qwen/Qwen3-8B-GGUF` and `Qwen3-8B-Q4_K_M.gguf`, about 5 GB.)
+
+### Each time you train
+
+1. **Download what the job needs:**
+
+   ```powershell
+   .\fetch.ps1 jobs\es-mx-whisper.yaml
+   ```
+
+   This downloads the starting model and the recordings the job file names into `inputs\`
+   (about 6 GB for this job). **Expect** it to end with `OK. Everything es-mx-whisper.yaml names is in ...`.
+   Anything already downloaded is skipped, so it's safe to run again.
+
+2. **Train:**
+
+   ```powershell
+   .\train.ps1 jobs\es-mx-whisper.yaml
+   ```
+
+   This runs eight stages, W1 to W8, one after another, and prints what each one does:
+
+   | Stage | What happens, simply |
+   |---|---|
+   | W1 | Checks the model and recordings are there and readable |
+   | W2 | Gets the recordings ready: same sound format, split into "learn from" and "test on" sets by speaker (so the test is fair), and the teacher adds punctuation |
+   | W3 | Tests the original model, so there's a score to beat |
+   | W4 | Trains. This is the long part: several hours on the 5090 |
+   | W5 | Tests the trained model on the same recordings, and stops if it didn't get better on the accent, or got worse on ordinary speech |
+   | W6 | Combines the add-on with the original model, and checks the result still scores the same |
+   | W7 | Converts it into the files volis reads, and installs it into volis |
+   | W8 | Tests the converted version the way volis will run it |
+
+   **Expect** it to end with `Every stage passed`. Everything it makes goes in
+   `runs\es-mx-whisper\`.
+
+   **If it stops**, it prints `STOP:`, the reason in plain words, and the command to carry on,
+   such as `.\train.ps1 jobs\es-mx-whisper.yaml -From W4`. Fix what it says and run that command;
+   stages that already passed aren't repeated.
+
+3. **Listen to it.** Numbers can improve while the model gets worse in ways they miss, so a person
+   has to try it. Open volis, tick **Compare recognizers**, press **Start** and speak Spanish. The
+   new model (for this job, **Whisper large-v3-turbo Mexican Spanish (int8)**) is listed beside the
+   others, each writing down what you said, so you can see which hears you best.
+
+### The rehearsal: a quick test run
+
+Before the first real run on a new computer, or on a laptop, run the rehearsal. It does all eight
+stages on about an hour of recordings with a small model, so it finishes in about an hour:
+
+```powershell
+.\fetch.ps1 jobs\es-mx-whisper-small-rehearsal.yaml
+.\train.ps1 jobs\es-mx-whisper-small-rehearsal.yaml
+```
+
+Its model shows up in volis as **Whisper small Mexican Spanish (rehearsal, int8)**. Treat it as
+proof that everything works, not as a model to use: an hour of recordings is too little to
+learn an accent well.
+
+### Training on one computer, finishing on another
+
+The last two stages need volis on the same computer. If the 5090 desktop doesn't have volis,
+train there and finish on the computer that does:
+
+1. On the desktop, stop after stage W6:
+
+   ```powershell
+   .\train.ps1 jobs\es-mx-whisper.yaml -To W6
+   ```
+
+2. Copy the whole `runs\es-mx-whisper\` folder to the same place on the other computer (a USB
+   drive works; it's a few GB). That other computer needs this project set up too (steps 1, 2 and
+   4 above; no graphics card or teacher needed for these stages), and the job's downloads,
+   because the conversion reads the starting model's word list:
+
+   ```powershell
+   .\fetch.ps1 jobs\es-mx-whisper.yaml
+   ```
+
+3. There, finish from stage W7:
+
+   ```powershell
+   .\train.ps1 jobs\es-mx-whisper.yaml -From W7
+   ```
+
 ## Setting it up
 
 You need 64-bit Windows, [Git](https://git-scm.com) and [uv](https://docs.astral.sh/uv/) 0.11

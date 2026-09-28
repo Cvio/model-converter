@@ -7,6 +7,10 @@
 #
 #     .\train.ps1 jobs\es-mx-whisper.yaml -From W4
 #
+# To stop after a stage (say, train on one PC and convert on another):
+#
+#     .\train.ps1 jobs\es-mx-whisper.yaml -To W6
+#
 # A stage that already finished isn't repeated. The stage you start from with
 # -From is redone; -Force redoes every stage from the start (or from -From).
 # Before the first run, download the job's inputs with .\fetch.ps1 <job>.
@@ -14,6 +18,7 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)][string]$Job,
     [string]$From = "",
+    [string]$To = "",
     [switch]$Force
 )
 $repo = $PSScriptRoot
@@ -59,6 +64,14 @@ if ($From) {
         exit 1
     }
 }
+$end = $stages.Count - 1
+if ($To) {
+    $end = [array]::IndexOf($ids, $To.ToUpper())
+    if ($end -lt $start) {
+        Write-Host "STOP: -To $To isn't a stage at or after the first one run ($($ids -join ', '))" -ForegroundColor Red
+        exit 1
+    }
+}
 foreach ($envName in @("training\.venv", ".venv")) {
     if (-not (Test-Path (Join-Path $repo $envName))) {
         Write-Host "STOP: $envName is missing. Run .\setup.ps1 first." -ForegroundColor Red
@@ -73,7 +86,7 @@ foreach ($envName in @("training\.venv", ".venv")) {
 $started = Get-Date
 Push-Location $repo
 try {
-    for ($n = $start; $n -lt $stages.Count; $n++) {
+    for ($n = $start; $n -le $end; $n++) {
         $id, $script, $envName = $stages[$n]
         $project = if ($envName -eq "training") { Join-Path $repo "training" } else { $repo }
         $stageArgs = @("run", "--project", $project, "--locked", "--no-sync", "python", $script, $jobPath)
@@ -98,4 +111,8 @@ finally {
 
 $minutes = [math]::Round(((Get-Date) - $started).TotalMinutes, 1)
 Write-Host ""
-Write-Host "Every stage passed ($minutes minutes)." -ForegroundColor Green
+if ($end -lt $stages.Count - 1) {
+    Write-Host "Stages up to $($ids[$end]) passed ($minutes minutes). The next one is $($ids[$end + 1])." -ForegroundColor Green
+} else {
+    Write-Host "Every stage passed ($minutes minutes)." -ForegroundColor Green
+}
