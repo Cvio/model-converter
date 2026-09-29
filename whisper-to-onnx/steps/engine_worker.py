@@ -14,7 +14,8 @@ checks which onnxruntime.dll it actually got before trusting a transcript.
     python engine_worker.py --selftest --expect-ort 1.28.2
     python engine_worker.py --encoder E --decoder D --tokens T --wav W --language es --expect-ort 1.28.2
     python engine_worker.py ... --wav-list clips.txt ...   (one wav path per line; the
-        model loads once and "texts" holds one transcript per line)
+        model loads once; "texts" holds one transcript per line, "seconds" the time
+        each took, reading the file included)
     python engine_worker.py --encoder E --decoder D --joiner J --tokens T ...   (a NeMo
         transducer such as Parakeet, instead of Whisper; --language is ignored)
 """
@@ -193,8 +194,14 @@ def main() -> None:
         result = check_runtime(a.expect_ort)
         if a.wav_list:
             recognizer = recognizer_for(a)
-            wavs = Path(a.wav_list).read_text(encoding="utf-8").splitlines()
-            result["texts"] = [transcribe_with(recognizer, w) for w in wavs if w.strip()]
+            wavs = [w for w in Path(a.wav_list).read_text(encoding="utf-8").splitlines() if w.strip()]
+            import time
+
+            result["texts"], result["seconds"] = [], []
+            for w in wavs:
+                started = time.perf_counter()
+                result["texts"].append(transcribe_with(recognizer, w))
+                result["seconds"].append(round(time.perf_counter() - started, 4))
             result["onnxruntime_after"] = check_runtime(a.expect_ort)["onnxruntime"]
         elif not a.selftest:
             result["text"] = transcribe(a)
