@@ -15,6 +15,8 @@ checks which onnxruntime.dll it actually got before trusting a transcript.
     python engine_worker.py --encoder E --decoder D --tokens T --wav W --language es --expect-ort 1.28.2
     python engine_worker.py ... --wav-list clips.txt ...   (one wav path per line; the
         model loads once and "texts" holds one transcript per line)
+    python engine_worker.py --encoder E --decoder D --joiner J --tokens T ...   (a NeMo
+        transducer such as Parakeet, instead of Whisper; --language is ignored)
 """
 
 import argparse
@@ -139,6 +141,18 @@ def check_runtime(expect: str) -> dict:
 def recognizer_for(a):
     import sherpa_onnx
 
+    if a.joiner:
+        # A NeMo transducer (Parakeet), configured as volis's NemoTransducerAsr
+        # is: model_type nemo_transducer, 6 threads, CPU, greedy search.
+        return sherpa_onnx.OfflineRecognizer.from_transducer(
+            encoder=a.encoder,
+            decoder=a.decoder,
+            joiner=a.joiner,
+            tokens=a.tokens,
+            model_type="nemo_transducer",
+            num_threads=6,
+            provider="cpu",
+        )
     return sherpa_onnx.OfflineRecognizer.from_whisper(
         encoder=a.encoder,
         decoder=a.decoder,
@@ -169,7 +183,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--expect-ort", required=True)
     parser.add_argument("--selftest", action="store_true")
-    for name in ("--encoder", "--decoder", "--tokens", "--wav", "--wav-list", "--language"):
+    for name in ("--encoder", "--decoder", "--joiner", "--tokens", "--wav", "--wav-list", "--language"):
         parser.add_argument(name)
     a = parser.parse_args()
     try:
